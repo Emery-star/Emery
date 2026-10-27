@@ -15,7 +15,7 @@ const config = {
   mode: 'amis',
   adminToken: ADMIN,
   publicUrl: 'https://envoi.example',
-  operator: { name: 'Emery', airtel: '074 72 18 19', paypalEmail: 'orga@example.com', paypalMe: 'orgaexemple', wero: '0612345678', iban: '', whatsapp: '' },
+  operator: { name: 'Emery', airtel: '074 00 00 01', paypalEmail: 'orga@example.com', paypalMe: 'orgaexemple', wero: '0612345678', iban: '', whatsapp: '' },
 };
 
 async function start(cfg = config) {
@@ -89,7 +89,7 @@ test('Gabon -> France : paiement sur le numéro Airtel de l’organisateur, réc
   assert.strictEqual(created.status, 201);
   assert.strictEqual(created.body.quote.receiveAmount, 100);
   const view = await call(`/api/requests/${created.body.id}?t=${created.body.accessToken}`);
-  assert.strictEqual(view.body.instructions.to, '+241 074 72 18 19');
+  assert.strictEqual(view.body.instructions.to, '+241 074 00 00 01');
   assert.strictEqual(view.body.instructions.amount, '65 596 FCFA');
   const list = await call('/api/admin/requests', { admin: true });
   assert.strictEqual(list.body[0].account_display, '0698765432');
