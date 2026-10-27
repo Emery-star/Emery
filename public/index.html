@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Envoi Gabon – Airtel Money</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="send">
+  <header class="top">
+    <div class="wrap">
+      <span class="logo">Envoi<b>Gabon</b></span>
+      <span class="tag">Directement sur Airtel Money</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="sandbox" class="banner hidden">Mode démonstration : aucun argent réel n’est débité ni envoyé.</div>
+    <div id="cancelled" class="banner warn hidden">Paiement annulé. Votre carte n’a pas été débitée.</div>
+
+    <section class="card">
+      <h1>Envoyez de l’argent au Gabon</h1>
+      <p class="lead">Taux officiel 1 € = 655,957 FCFA, sans marge cachée. Reçu en quelques minutes sur Airtel Money.</p>
+
+      <label for="amount">Vous envoyez</label>
+      <div class="money"><input id="amount" type="number" inputmode="decimal" min="5" max="1000" step="1" value="100"><span>EUR</span></div>
+
+      <label>Le bénéficiaire reçoit</label>
+      <div class="money result"><output id="received">—</output><span>FCFA</span></div>
+
+      <dl class="summary">
+        <div><dt>Frais</dt><dd id="fee">—</dd></div>
+        <div><dt>Total débité</dt><dd id="total">—</dd></div>
+      </dl>
+      <p id="quoteError" class="error hidden"></p>
+
+      <table class="compare">
+        <thead><tr><th>Service</th><th>Coût total estimé*</th><th>Reçu</th></tr></thead>
+        <tbody id="compare"></tbody>
+      </table>
+      <p class="fine">* Frais + marge sur le taux de change, estimations indicatives des concurrents.</p>
+    </section>
+
+    <form id="sendForm" class="card" novalidate>
+      <h2>Bénéficiaire au Gabon</h2>
+      <label for="recipientPhone">Numéro Airtel Money</label>
+      <div class="row">
+        <input id="recipientPhone" name="recipientPhone" type="tel" placeholder="077 12 34 56" autocomplete="off" required>
+        <button type="button" id="verify" class="secondary">Vérifier</button>
+      </div>
+      <p id="verifyResult" class="hint"></p>
+
+      <label for="recipientName">Nom du bénéficiaire</label>
+      <input id="recipientName" name="recipientName" required maxlength="100">
+
+      <h2>Vous</h2>
+      <label for="senderName">Votre nom complet</label>
+      <input id="senderName" name="senderName" autocomplete="name" required maxlength="100">
+      <label for="senderEmail">Votre e-mail (pour le reçu)</label>
+      <input id="senderEmail" name="senderEmail" type="email" autocomplete="email" required maxlength="200">
+
+      <label class="check"><input type="checkbox" id="confirm" required> J’ai vérifié le numéro : un envoi sur un mauvais numéro ne peut pas être annulé.</label>
+
+      <p id="formError" class="error hidden"></p>
+      <button type="submit" id="submit" class="primary">Payer par carte</button>
+    </form>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

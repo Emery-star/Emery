@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paiement simulé</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="mockpay">
+  <header class="top"><div class="wrap"><span class="logo">Envoi<b>Gabon</b></span></div></header>
+  <main class="wrap">
+    <section class="card">
+      <div class="banner">Page de paiement simulée (Stripe non configuré). Aucune carte n’est débitée.</div>
+      <h1>Paiement par carte</h1>
+      <button id="pay" class="primary">Simuler un paiement réussi</button>
+      <a href="/?annule=1" class="secondary link">Annuler</a>
+      <p id="payError" class="error hidden"></p>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

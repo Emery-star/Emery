@@ -1,0 +1,21 @@
+{
+  "name": "envoi-gabon",
+  "version": "0.1.0",
+  "description": "Envoi d'argent vers Airtel Money Gabon, moins cher que Western Union et Ria",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "express": "^5.1.0",
+    "stripe": "^18.5.0"
+  }
+}
