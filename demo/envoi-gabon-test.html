@@ -2,7 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;600;700&display=swap">
 <style>
-/* Layout : une colonne étroite façon appli mobile, bandeau aux couleurs du drapeau gabonais */
+/* Layout : une colonne façon appli mobile, bandeau aux couleurs du drapeau gabonais, deux vues (ami / organisateur) */
 :root {
   --bg: #f1f5f2;
   --card: #ffffff;
@@ -37,28 +37,33 @@
 * { box-sizing: border-box; }
 body { background: var(--bg); color: var(--fg); font: 16px/1.5 var(--body); }
 .wrap { max-width: 540px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-.top { background: var(--brand); color: var(--brand-ink); border-bottom: 5px solid var(--sun); box-shadow: 0 5px 0 var(--sea); margin-bottom: 26px; }
+.top { background: var(--brand); color: var(--brand-ink); border-bottom: 5px solid var(--sun); box-shadow: 0 5px 0 var(--sea); margin-bottom: 22px; }
 .top .wrap { display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: space-between; align-items: center; padding-block: 14px; }
 .logo { font: 800 1.35rem var(--display); letter-spacing: -.01em; }
 .logo b { color: var(--sun); font-weight: 800; }
 .tag { font-size: .85rem; opacity: .92; }
-main { display: grid; gap: 18px; padding-bottom: 32px; }
+main { display: grid; gap: 16px; padding-bottom: 32px; }
 .banner { background: var(--sun); color: var(--sun-ink); border-radius: 10px; padding: 10px 14px; font-size: .9rem; }
+.views { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px; }
+.views button { border: 0; background: transparent; color: var(--muted); padding: 10px 6px; border-radius: 9px; margin: 0; display: inline-flex; gap: 6px; justify-content: center; align-items: center; }
+.views button[aria-selected="true"] { background: var(--brand); color: var(--brand-ink); }
+.badge { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--bad); color: #fff; font-size: .75rem; line-height: 20px; }
 .promo { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; border: 2px solid var(--brand); background: var(--card); border-radius: 12px; padding: 12px 14px; }
 .promo strong { color: var(--brand); font: 800 1.1rem var(--display); }
 .promo span { color: var(--muted); font-size: .9rem; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 4px; min-width: 0; }
-h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; }
-h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -.01em; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
+h1 { font-size: 1.45rem; font-weight: 800; letter-spacing: -.01em; }
 h2 { font-size: 1.1rem; font-weight: 600; margin-top: 12px; }
 h2:first-child { margin-top: 0; }
-.lead { color: var(--muted); margin: 2px 0 10px; }
+h3 { font-size: 1.02rem; }
+.lead { color: var(--muted); margin: 2px 0 8px; }
 label, .label { font-weight: 600; font-size: .9rem; margin-top: 12px; }
 input[type=text], input[type=tel], input[type=email], input[type=number] {
   width: 100%; padding: 12px; font: inherit; color: var(--fg); background: var(--field);
   border: 1px solid var(--line); border-radius: 10px; margin-top: 4px;
 }
-input:focus-visible, button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--field); border-radius: 12px; padding: 4px; margin-bottom: 4px; }
 .tabs button { border: 0; background: transparent; color: var(--muted); padding: 10px 6px; border-radius: 9px; margin: 0; }
 .tabs button[aria-selected="true"] { background: var(--card); color: var(--brand); box-shadow: 0 1px 4px var(--shadow); }
@@ -83,191 +88,171 @@ th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line
 th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
 tr.best td { color: var(--brand); font-weight: 700; }
 .fine { font-size: .8rem; color: var(--muted); margin: 6px 0 0; }
-.row { display: flex; gap: 8px; align-items: stretch; margin-top: 4px; }
-.row input { margin: 0; flex: 1; min-width: 0; }
-.group { display: grid; gap: 4px; }
 .check { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; margin-top: 16px; }
 .check input { margin-top: 5px; }
-button { font: 700 1rem var(--body); border-radius: 10px; padding: 12px 18px; cursor: pointer; }
-.primary { background: var(--brand); color: var(--brand-ink); border: 0; margin-top: 16px; width: 100%; }
+button, .btn { font: 700 1rem var(--body); border-radius: 10px; padding: 12px 18px; cursor: pointer; text-align: center; text-decoration: none; display: inline-block; }
+.primary { background: var(--brand); color: var(--brand-ink); border: 0; margin-top: 14px; width: 100%; }
 .primary:hover { background: var(--brand-strong); }
-.primary:disabled { opacity: .6; cursor: progress; }
 .ghost { background: transparent; color: var(--brand); border: 1px solid var(--brand); }
-.hint { font-size: .88rem; color: var(--muted); min-height: 1.3em; margin: 4px 0 0; }
-.hint.ok { color: var(--ok); }
+.small { padding: 4px 10px; font-size: .8rem; }
 .err { color: var(--bad); font-size: .9rem; margin: 6px 0 0; }
-.tips { font-size: .85rem; color: var(--muted); margin: 8px 0 0; padding-left: 18px; }
-.tips code { font-weight: 700; color: var(--fg); }
-.steps { list-style: none; padding: 0; margin: 12px 0 4px; display: grid; }
-.steps li { display: grid; grid-template-columns: 22px 1fr; gap: 12px; align-items: start; padding: 8px 0; color: var(--muted); }
-.steps li::before { content: ""; width: 14px; height: 14px; margin-top: 4px; border-radius: 50%; border: 2px solid var(--line); background: var(--card); }
-.steps li.done { color: var(--fg); }
-.steps li.done::before { background: var(--brand); border-color: var(--brand); }
-.steps li.now { color: var(--fg); font-weight: 700; }
-.steps li.now::before { border-color: var(--sea); animation: pulse 1s infinite alternate; }
-.steps li.fail { color: var(--bad); font-weight: 700; }
-.steps li.fail::before { background: var(--bad); border-color: var(--bad); }
-@keyframes pulse { to { background: var(--sea); } }
-@media (prefers-reduced-motion: reduce) { .steps li.now::before { animation: none; background: var(--sea); } }
-.status { font: 700 1.15rem var(--display); padding: 14px; border-radius: 10px; background: var(--field); margin-top: 8px; }
+.status { font: 700 1.1rem var(--display); padding: 14px; border-radius: 10px; background: var(--field); margin-top: 8px; }
 .status.ok { color: var(--ok); }
 .status.bad { color: var(--bad); }
 .status.wait { color: var(--sea); }
-.paybox { border: 1px dashed var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 4px; margin-top: 8px; }
-.paybox strong { font: 800 1.6rem var(--display); font-variant-numeric: tabular-nums; }
-.pinbox { border: 1px dashed var(--brand); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; margin-top: 8px; }
-.pinbox p { margin: 0; }
+.paybox { border: 1px dashed var(--brand); border-radius: 10px; padding: 14px; display: grid; gap: 6px; margin-top: 10px; }
+.paybox .big { font: 800 1.6rem var(--display); font-variant-numeric: tabular-nums; }
+.paybox ol { margin: 4px 0; padding-left: 20px; }
+.line { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.line strong { overflow-wrap: anywhere; }
+.req { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 8px; }
+.req header { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: baseline; }
+.todo-box { background: var(--field); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions button { padding: 8px 12px; font-size: .88rem; }
+.actions .go { background: var(--brand); color: var(--brand-ink); border: 1px solid var(--brand); }
+.pill { font-size: .8rem; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--field); }
+.pill.ok { color: var(--ok); }
+.pill.bad { color: var(--bad); }
+.pill.wait { color: var(--sea); }
+.alert { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--sea); border-radius: 10px; padding: 10px 12px; font-size: .9rem; }
+.empty { color: var(--muted); text-align: center; padding: 18px 0; }
 </style>
 
 <header class="top">
   <div class="wrap">
     <span class="logo">Envoi<b>Gabon</b></span>
-    <span class="tag">France ⇄ Gabon via Airtel Money</span>
+    <span class="tag">France ⇄ Gabon, entre amis</span>
   </div>
 </header>
 
 <main class="wrap">
-  <div class="banner">Version test : aucun argent n'est débité ni envoyé. Tout est simulé dans votre navigateur.</div>
-  <div class="promo"><strong>Premier envoi : frais offerts</strong><span>Jusqu'à 5 € offerts. Ensuite 0,99 € seulement jusqu'à 50 €.</span></div>
+  <div class="banner">Version test : ne payez rien pour de vrai. Les demandes restent dans votre navigateur.</div>
 
-  <section id="viewSend" class="card">
-    <div class="tabs" role="tablist">
-      <button type="button" role="tab" id="tabFr" data-dir="fr_to_ga" aria-selected="true">France → Gabon</button>
-      <button type="button" role="tab" id="tabGa" data-dir="ga_to_fr" aria-selected="false">Gabon → France</button>
-    </div>
+  <div class="views" role="tablist">
+    <button type="button" role="tab" id="viewFriendBtn" aria-selected="true">Vue ami</button>
+    <button type="button" role="tab" id="viewOrgaBtn" aria-selected="false">Vue organisateur <span class="badge" id="todoBadge" hidden>0</span></button>
+  </div>
 
-    <label for="amount">Vous envoyez</label>
-    <div class="money"><input id="amount" type="number" inputmode="decimal" min="1" step="1" value="100"><span id="sendCur">EUR</span></div>
-    <label>Le bénéficiaire reçoit</label>
-    <div class="money"><output id="received">—</output><span id="recvCur">FCFA</span></div>
-
-    <span class="label">Vous payez avec</span>
-    <div class="chips" id="payChips"></div>
-    <span class="label">Le bénéficiaire reçoit sur</span>
-    <div class="chips" id="payoutChips"></div>
-
-    <dl>
-      <div><dt>Frais</dt><dd id="fee">—</dd></div>
-      <div><dt>Premier envoi offert</dt><dd id="discount" class="gift">—</dd></div>
-      <div><dt>Total à payer</dt><dd id="total">—</dd></div>
-    </dl>
-    <p id="quoteErr" class="err" hidden></p>
-    <div class="tablebox">
-      <table>
-        <thead><tr><th>Service</th><th>Coût total*</th><th>Reçu</th></tr></thead>
-        <tbody id="compare"></tbody>
-      </table>
-    </div>
-    <p class="fine">* Frais + marge sur le taux de change. Taux officiel 1 € = 655,957 FCFA, sans marge chez nous. Concurrents : estimations.</p>
-  </section>
-
-  <form id="form" class="card" novalidate>
-    <div class="group" data-for="fr_to_ga">
-      <h2>Bénéficiaire au Gabon</h2>
-      <label for="rphone">Numéro Airtel Money</label>
-      <div class="row">
-        <input id="rphone" type="tel" value="077 12 34 56" autocomplete="off">
-        <button type="button" id="verify" class="ghost">Vérifier</button>
+  <!-- ======== VUE AMI ======== -->
+  <div id="friendView" class="grid-gap">
+    <section id="formView" class="card">
+      <div class="promo"><strong>Premier envoi : frais offerts</strong><span>Jusqu'à 5 € offerts. Ensuite 0,99 € jusqu'à 50 €.</span></div>
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" data-dir="fr_to_ga" aria-selected="true">France → Gabon</button>
+        <button type="button" role="tab" data-dir="ga_to_fr" aria-selected="false">Gabon → France</button>
       </div>
-      <p id="verifyOut" class="hint"></p>
-    </div>
-    <div class="group" data-for="ga_to_fr" hidden>
-      <h2>Bénéficiaire en France</h2>
-      <div class="group" data-payout="sepa">
-        <label for="riban">IBAN du bénéficiaire</label>
-        <input id="riban" type="text" value="FR76 3000 6000 0112 3456 7890 189" autocomplete="off">
+      <label for="amount">Vous envoyez</label>
+      <div class="money"><input id="amount" type="number" inputmode="decimal" min="1" step="1" value="100"><span id="sendCur">EUR</span></div>
+      <label>Le bénéficiaire reçoit</label>
+      <div class="money"><output id="received">—</output><span id="recvCur">FCFA</span></div>
+      <span class="label">Vous payez par</span>
+      <div class="chips" id="payChips"></div>
+      <span class="label">Le bénéficiaire reçoit sur</span>
+      <div class="chips" id="payoutChips"></div>
+      <dl>
+        <div><dt>Frais</dt><dd id="fee">—</dd></div>
+        <div><dt>Si c'est votre premier envoi</dt><dd id="discount" class="gift">—</dd></div>
+        <div><dt>Total à payer</dt><dd id="total">—</dd></div>
+      </dl>
+      <p id="quoteErr" class="err" hidden></p>
+      <div class="tablebox">
+        <table>
+          <thead><tr><th>Service</th><th>Coût total*</th><th>Reçu</th></tr></thead>
+          <tbody id="compare"></tbody>
+        </table>
       </div>
-      <div class="group" data-payout="paypal" hidden>
-        <label for="remail">E-mail du compte PayPal</label>
-        <input id="remail" type="email" value="marie@example.com" autocomplete="off">
+      <p class="fine">* Frais + marge sur le taux de change. Taux officiel 1 € = 655,957 FCFA. Concurrents : estimations.</p>
+
+      <h2>Bénéficiaire</h2>
+      <label for="raccount" id="accountLabel">Numéro Airtel Money</label>
+      <input id="raccount" type="tel" value="077 12 34 56" autocomplete="off">
+      <label for="rname">Prénom et nom du bénéficiaire</label>
+      <input id="rname" type="text" value="Paul Obame" maxlength="100">
+      <h2>Vous</h2>
+      <label for="sname">Votre prénom et nom</label>
+      <input id="sname" type="text" value="Marie Ndong" maxlength="100">
+      <label for="scontact">Votre WhatsApp, téléphone ou e-mail</label>
+      <input id="scontact" type="text" value="06 11 22 33 44" maxlength="100">
+      <label class="check"><input type="checkbox" id="confirm"> J'ai vérifié les coordonnées du bénéficiaire.</label>
+      <p id="formErr" class="err" hidden></p>
+      <button type="button" id="submit" class="primary">Continuer</button>
+    </section>
+
+    <section id="trackView" class="card" hidden>
+      <h1>Envoi <span id="tCode"></span></h1>
+      <div id="tStatus" class="status wait"></div>
+      <div id="tPay" class="paybox">
+        <h3 id="tPayTitle"></h3>
+        <span class="big" id="tPayAmount"></span>
+        <div class="line">à <strong id="tPayTo"></strong> <button type="button" class="ghost small" id="tCopyTo">Copier</button></div>
+        <ol id="tSteps"></ol>
+        <a id="tLink" class="btn primary" target="_blank" rel="noopener" hidden>Payer avec PayPal</a>
+        <div id="tDeclare">
+          <label for="payerRef">Référence du paiement (facultatif)</label>
+          <input id="payerRef" type="text" maxlength="60" placeholder="ex. n° de transaction Airtel">
+          <button type="button" id="declareBtn" class="primary">J'ai payé</button>
+          <button type="button" id="cancelBtn" class="ghost">Annuler la demande</button>
+        </div>
       </div>
-    </div>
-    <label for="rname">Nom complet du bénéficiaire</label>
-    <input id="rname" type="text" value="Paul Obame (exemple)" maxlength="100">
+      <dl id="tDetails"></dl>
+      <p class="fine" id="tHint">Passez dans la « Vue organisateur » pour voir ce que vous recevez de votre côté.</p>
+      <button type="button" id="newBtn" class="ghost">Faire un nouvel envoi</button>
+    </section>
+  </div>
 
-    <h2>Vous</h2>
-    <label for="sname">Votre nom complet</label>
-    <input id="sname" type="text" value="Marie Ndong (exemple)" maxlength="100">
-    <div class="group" data-for="fr_to_ga">
-      <label for="semail">Votre e-mail</label>
-      <input id="semail" type="email" value="marie@example.com" maxlength="200">
-    </div>
-    <div class="group" data-for="ga_to_fr" hidden>
-      <label for="sphone">Votre numéro Airtel Money (le paiement sera demandé dessus)</label>
-      <input id="sphone" type="tel" value="074 11 22 33">
-    </div>
-
-    <label class="check"><input type="checkbox" id="confirm"> J'ai vérifié les coordonnées du bénéficiaire : un envoi vers un mauvais compte ne peut pas être annulé.</label>
-    <p id="formErr" class="err" hidden></p>
-    <button type="submit" id="submit" class="primary">Payer</button>
-    <ul class="tips">
-      <li>Numéro Airtel finissant par <code>9999</code> : bénéficiaire en échec (France → Gabon) ou solde insuffisant (Gabon → France).</li>
-      <li>Numéro finissant par <code>0000</code> : compte Airtel introuvable.</li>
-      <li>E-mail PayPal commençant par <code>echec</code> ou nom contenant « echec » pour un IBAN : versement refusé puis remboursement.</li>
-    </ul>
-  </form>
-
-  <section id="viewPay" class="card" hidden>
-    <h1 id="payTitle">Paiement</h1>
-    <p class="lead" id="payLead"></p>
-    <div class="paybox">
-      <span>Montant à payer</span>
-      <strong id="payTotal"></strong>
-      <span id="payFor" class="fine"></span>
-    </div>
-    <div class="pinbox" id="pinBox" hidden>
-      <p>Une demande de paiement a été envoyée sur votre téléphone. <strong>Validez-la avec votre code PIN Airtel Money.</strong></p>
-    </div>
-    <button id="payBtn" class="primary">Simuler le paiement</button>
-    <button id="cancelBtn" class="ghost">Annuler</button>
-  </section>
-
-  <section id="viewTrack" class="card" hidden>
-    <h1>Suivi de votre envoi</h1>
-    <div id="status" class="status wait">Paiement reçu</div>
-    <ol class="steps" id="steps">
-      <li data-s="paid">Paiement reçu</li>
-      <li data-s="sending" id="stepSending">Envoi en cours</li>
-      <li data-s="done" id="stepDone">Argent disponible</li>
-    </ol>
-    <dl id="details"></dl>
-    <button id="againBtn" class="primary">Faire un nouvel envoi</button>
-  </section>
+  <!-- ======== VUE ORGANISATEUR ======== -->
+  <div id="orgaView" hidden>
+    <section class="card">
+      <h1>Espace organisateur</h1>
+      <p class="lead">Ici arrivent les demandes de vos amis. En vrai, une alerte sonne aussi sur votre téléphone.</p>
+      <div id="alerts" class="grid-gap"></div>
+    </section>
+    <div id="orgaList" class="grid-gap"></div>
+  </div>
 </main>
 
 <script>
 'use strict';
-// Mêmes règles que le serveur (src/fees.js, src/phone.js, src/validate.js).
+// Mêmes règles que le serveur (src/fees.js, src/friends/service.js).
+const OP = { name: 'Organisateur', airtel: '074000001', paypal: 'organisateur@example.com' };
 const CFG = {
   rate: 655.957,
   fees: { smallLimit: 50, small: 0.99, fixed: 1.49, percent: 1.5, paypal: 1.0, firstFreeMax: 5 },
   limits: { min: 5, max: 1000 },
   competitors: { 'Western Union': { fixed: 4.9, fx: 2.5 }, 'Ria': { fixed: 3.99, fx: 1.8 } },
-  prefixes: ['074', '076', '077'],
 };
 const METHODS = {
   fr_to_ga: {
-    pay: [{ id: 'card', label: 'Carte bancaire' }, { id: 'paypal', label: 'PayPal', extra: '+1 %' }, { id: 'wero', label: 'Wero', soon: true }],
+    pay: [{ id: 'paypal', label: 'PayPal', extra: '+1 %' }, { id: 'wero', label: 'Wero', off: 'à configurer' }, { id: 'virement', label: 'Virement', off: 'à configurer' }],
     payout: [{ id: 'airtel', label: 'Airtel Money' }],
   },
   ga_to_fr: {
     pay: [{ id: 'airtel', label: 'Airtel Money' }],
-    payout: [{ id: 'sepa', label: 'Compte bancaire (IBAN)' }, { id: 'paypal', label: 'PayPal', extra: '+1 %' }, { id: 'wero', label: 'Wero', soon: true }],
+    payout: [{ id: 'paypal', label: 'PayPal', extra: '+1 %' }, { id: 'sepa', label: 'Compte bancaire (IBAN)' }, { id: 'wero', label: 'Wero', off: 'à configurer' }],
   },
 };
+const ACCOUNT = {
+  airtel: ['Numéro Airtel Money', 'tel', '077 12 34 56'],
+  paypal: ['E-mail du compte PayPal', 'email', 'marie@example.com'],
+  sepa: ['IBAN du bénéficiaire', 'text', 'FR76 3000 6000 0112 3456 7890 189'],
+};
+const LABEL = { airtel: 'Airtel Money', paypal: 'PayPal', sepa: 'compte bancaire', wero: 'Wero', virement: 'virement' };
+
 const $ = (id) => document.getElementById(id);
 const r2 = (n) => Math.round(n * 100) / 100;
 const f2 = (n) => Math.floor(n * 100 + 1e-6) / 100;
 const money = (n, cur) => cur === 'EUR' ? n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' }) : n.toLocaleString('fr-FR') + ' FCFA';
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const state = { dir: 'fr_to_ga', pay: 'card', payout: 'airtel', amounts: { fr_to_ga: 100, ga_to_fr: 65000 }, senders: new Set() };
+const fmtGa = (m) => `+241 ${m.slice(0, 3)} ${m.slice(3, 5)} ${m.slice(5, 7)} ${m.slice(7)}`;
+function el(tag, props, ...kids) { const n = Object.assign(document.createElement(tag), props || {}); n.append(...kids.filter((k) => k != null)); return n; }
+function showErr(node, msg) { node.textContent = msg || ''; node.hidden = !msg; }
+
+const state = { dir: 'fr_to_ga', pay: 'paypal', payout: 'airtel', amounts: { fr_to_ga: 100, ga_to_fr: 65000 }, requests: [], current: null, alerts: [] };
 
 function feeEur(eur, surcharge) {
   const f = CFG.fees;
-  const base = eur <= f.smallLimit ? f.small : f.fixed + eur * f.percent / 100;
-  return r2(base + eur * surcharge / 100);
+  return r2((eur <= f.smallLimit ? f.small : f.fixed + eur * f.percent / 100) + eur * surcharge / 100);
 }
-
 function quote(v, first) {
   const raw = Number(v);
   if (v === '' || !Number.isFinite(raw)) throw new Error('Montant invalide');
@@ -282,96 +267,79 @@ function quote(v, first) {
   const discount = first ? Math.min(fee, conv(CFG.fees.firstFreeMax)) : 0;
   const received = fr ? Math.floor(eur * CFG.rate) : eur;
   const comparison = [{ name: 'EnvoiGabon', cost: fee, received }].concat(Object.entries(CFG.competitors).map(([name, c]) => {
-    const costEur = c.fixed + eur * c.fx / 100;
-    const keep = 1 - c.fx / 100;
-    return fr ? { name, cost: r2(costEur), received: Math.floor(eur * CFG.rate * keep) }
-              : { name, cost: Math.ceil(costEur * CFG.rate), received: f2(eur * keep) };
+    const costEur = c.fixed + eur * c.fx / 100, keep = 1 - c.fx / 100;
+    return fr ? { name, cost: r2(costEur), received: Math.floor(eur * CFG.rate * keep) } : { name, cost: Math.ceil(costEur * CFG.rate), received: f2(eur * keep) };
   }));
-  return { fr, sent, fee, discount, total: fr ? r2(sent + fee - discount) : sent + fee - discount, received, comparison,
-           sendCur: fr ? 'EUR' : 'XAF', recvCur: fr ? 'XAF' : 'EUR' };
+  return { fr, sent, fee, discount, total: fr ? r2(sent + fee - discount) : sent + fee - discount, received, comparison, sendCur: fr ? 'EUR' : 'XAF', recvCur: fr ? 'XAF' : 'EUR' };
 }
-
-function normalizePhone(input) {
+function normGa(input) {
   let d = String(input).replace(/[\s.\-()]/g, '');
   if (d.startsWith('+')) d = d.slice(1);
   if (d.startsWith('00')) d = d.slice(2);
   if (!/^\d+$/.test(d)) return null;
   if (d.startsWith('241')) d = d.slice(3);
   if (d.length === 8 && d.startsWith('7')) d = '0' + d;
-  if (d.length !== 9 || !CFG.prefixes.some((p) => d.startsWith(p))) return null;
-  return d;
+  return d.length === 9 && /^07[467]/.test(d) ? d : null;
 }
 const IBAN_LEN = { FR: 27, BE: 16, DE: 22, ES: 24, IT: 27, LU: 20, NL: 18, PT: 25, CH: 21, MC: 27, IE: 22, AT: 20 };
-function normalizeIban(input) {
+function normIban(input) {
   const s = String(input).replace(/\s+/g, '').toUpperCase();
   if (!/^[A-Z]{2}\d{2}[A-Z0-9]+$/.test(s) || IBAN_LEN[s.slice(0, 2)] !== s.length) return null;
   let rest = 0;
-  for (const ch of s.slice(4) + s.slice(0, 4)) {
-    for (const d of ch >= 'A' ? String(ch.charCodeAt(0) - 55) : ch) rest = (rest * 10 + Number(d)) % 97;
-  }
+  for (const ch of s.slice(4) + s.slice(0, 4)) for (const d of ch >= 'A' ? String(ch.charCodeAt(0) - 55) : ch) rest = (rest * 10 + Number(d)) % 97;
   return rest === 1 ? s : null;
 }
-const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
-const fmtPhone = (m) => `+241 ${m.slice(0, 3)} ${m.slice(3, 5)} ${m.slice(5, 7)} ${m.slice(7)}`;
-function showErr(el, msg) { el.textContent = msg || ''; el.hidden = !msg; }
+const isEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+function newCode() {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return 'EG-' + Array.from(crypto.getRandomValues(new Uint8Array(5)), (b) => A[b % A.length]).join('');
+}
+async function copy(text, btn) {
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copié ✓'; }
+  catch { btn.textContent = text; }
+  setTimeout(() => { btn.textContent = 'Copier'; }, 1500);
+}
+const senderKey = () => $('scontact').value.replace(/\s/g, '').toLowerCase();
+const isFirst = () => !state.requests.some((r) => r.contact === senderKey() && ['paid', 'completed'].includes(r.status));
 
-function renderChips(el, list, key) {
-  el.replaceChildren(...list.map((m) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'chip';
-    b.disabled = Boolean(m.soon);
+// ---------- Formulaire ----------
+function chips(container, list, key) {
+  container.replaceChildren(...list.map((m) => {
+    const b = el('button', { type: 'button', className: 'chip', disabled: Boolean(m.off) }, m.label);
     b.setAttribute('aria-pressed', String(state[key] === m.id));
-    b.textContent = m.label;
-    if (m.soon || m.extra) {
-      const s = document.createElement('small');
-      s.textContent = m.soon ? 'Bientôt' : m.extra;
-      b.append(s);
-    }
+    if (m.extra || m.off) b.append(el('small', {}, m.off || m.extra));
     b.addEventListener('click', () => { state[key] = m.id; render(); });
     return b;
   }));
 }
-
 function render() {
   const m = METHODS[state.dir];
-  if (!m.pay.some((x) => x.id === state.pay)) state.pay = m.pay[0].id;
-  if (!m.payout.some((x) => x.id === state.payout)) state.payout = m.payout[0].id;
+  const pick = (list, cur) => (list.some((x) => x.id === cur && !x.off) ? cur : list.find((x) => !x.off).id);
+  state.pay = pick(m.pay, state.pay);
+  state.payout = pick(m.payout, state.payout);
   for (const t of document.querySelectorAll('[data-dir]')) t.setAttribute('aria-selected', String(t.dataset.dir === state.dir));
-  for (const el of document.querySelectorAll('[data-for]')) el.hidden = el.dataset.for !== state.dir;
-  for (const el of document.querySelectorAll('[data-payout]')) el.hidden = el.dataset.payout !== state.payout;
   const fr = state.dir === 'fr_to_ga';
   $('sendCur').textContent = fr ? 'EUR' : 'FCFA';
   $('recvCur').textContent = fr ? 'FCFA' : 'EUR';
   $('amount').step = fr ? '1' : '500';
-  $('rname').value = fr ? 'Paul Obame (exemple)' : 'Marie Ndong (exemple)';
-  $('sname').value = fr ? 'Marie Ndong (exemple)' : 'Paul Obame (exemple)';
-  renderChips($('payChips'), m.pay, 'pay');
-  renderChips($('payoutChips'), m.payout, 'payout');
-  $('submit').textContent = fr ? (state.pay === 'paypal' ? 'Payer avec PayPal' : 'Payer par carte') : 'Recevoir la demande de paiement Airtel';
+  chips($('payChips'), m.pay, 'pay');
+  chips($('payoutChips'), m.payout, 'payout');
+  const [label, type, value] = ACCOUNT[state.payout];
+  $('accountLabel').textContent = label;
+  $('raccount').type = type;
+  if (!$('raccount').dataset.touched) $('raccount').value = value;
   refresh();
 }
-
-function senderKey() {
-  return state.dir === 'fr_to_ga' ? $('semail').value.trim().toLowerCase() : normalizePhone($('sphone').value) || '';
-}
-
 function refresh() {
   try {
-    const q = quote($('amount').value, !state.senders.has(senderKey()));
+    const q = quote($('amount').value, isFirst());
     $('received').textContent = q.received.toLocaleString('fr-FR', { minimumFractionDigits: q.fr ? 0 : 2 });
     $('fee').textContent = money(q.fee, q.sendCur);
     $('discount').textContent = q.discount ? '− ' + money(q.discount, q.sendCur) : 'déjà utilisé';
     $('total').textContent = money(q.total, q.sendCur);
     showErr($('quoteErr'), '');
-    $('compare').replaceChildren(...q.comparison.map((c, i) => {
-      const tr = document.createElement('tr');
-      if (i === 0) tr.className = 'best';
-      for (const v of [c.name, money(c.cost, q.sendCur), money(c.received, q.recvCur)]) {
-        const td = document.createElement('td'); td.textContent = v; tr.append(td);
-      }
-      return tr;
-    }));
+    $('compare').replaceChildren(...q.comparison.map((c, i) => el('tr', { className: i === 0 ? 'best' : '' },
+      el('td', {}, c.name), el('td', {}, money(c.cost, q.sendCur)), el('td', {}, money(c.received, q.recvCur)))));
     return q;
   } catch (e) {
     for (const id of ['received', 'fee', 'discount', 'total']) $(id).textContent = '—';
@@ -380,148 +348,177 @@ function refresh() {
     return null;
   }
 }
-
 for (const t of document.querySelectorAll('[data-dir]')) {
   t.addEventListener('click', () => {
     state.amounts[state.dir] = $('amount').value;
     state.dir = t.dataset.dir;
     $('amount').value = state.amounts[state.dir];
+    delete $('raccount').dataset.touched;
+    if (state.dir === 'ga_to_fr') { $('rname').value = 'Marie Ndong'; $('sname').value = 'Paul Obame'; $('scontact').value = '077 12 34 56'; }
+    else { $('rname').value = 'Paul Obame'; $('sname').value = 'Marie Ndong'; $('scontact').value = '06 11 22 33 44'; }
     render();
   });
 }
+$('raccount').addEventListener('input', () => { $('raccount').dataset.touched = '1'; });
 $('amount').addEventListener('input', refresh);
-$('semail').addEventListener('input', refresh);
-$('sphone').addEventListener('input', refresh);
+$('scontact').addEventListener('input', refresh);
 
-$('verify').addEventListener('click', async () => {
-  const out = $('verifyOut');
-  out.className = 'hint';
-  const m = normalizePhone($('rphone').value);
-  if (!m) { out.className = 'hint err'; out.textContent = "Ce numéro n'est pas un numéro Airtel Gabon (074, 076, 077)."; return; }
-  out.textContent = 'Vérification…';
-  await wait(600);
-  if (m.endsWith('0000')) { out.className = 'hint err'; out.textContent = 'Aucun compte Airtel Money trouvé pour ce numéro.'; return; }
-  out.className = 'hint ok';
-  out.textContent = `✓ Compte Airtel Money ${fmtPhone(m)} au nom de PAUL O**** (simulé)`;
-});
-
-function show(view) {
-  for (const id of ['viewSend', 'form', 'viewPay', 'viewTrack']) $(id).hidden = true;
-  if (view === 'send') { $('viewSend').hidden = false; $('form').hidden = false; render(); }
-  else $(view).hidden = false;
-  window.scrollTo(0, 0);
-}
-
-let current = null;
-const PAYOUT_LABEL = { airtel: 'Airtel Money', paypal: 'PayPal', sepa: 'compte bancaire' };
-
-$('form').addEventListener('submit', (e) => {
-  e.preventDefault();
+$('submit').addEventListener('click', () => {
   const err = $('formErr');
   const q = refresh();
   if (!q) return showErr(err, 'Corrigez le montant.');
-  const c = { q, dir: state.dir, pay: state.pay, payout: state.payout, name: $('rname').value.trim(), sender: senderKey() };
-  if (state.dir === 'fr_to_ga') {
-    const m = normalizePhone($('rphone').value);
+  let account;
+  if (state.payout === 'airtel') {
+    const m = normGa($('raccount').value);
     if (!m) return showErr(err, 'Numéro Airtel Gabon du bénéficiaire invalide (ex. 077 12 34 56).');
-    if (m.endsWith('0000')) return showErr(err, 'Aucun compte Airtel Money pour ce numéro.');
-    if (!validEmail($('semail').value)) return showErr(err, 'Adresse e-mail invalide.');
-    c.account = `${m.slice(0, 3)} •• •• ${m.slice(7)}`;
-    c.fails = m.endsWith('9999');
+    account = m;
+  } else if (state.payout === 'paypal') {
+    account = $('raccount').value.trim().toLowerCase();
+    if (!isEmail(account)) return showErr(err, 'Adresse e-mail PayPal du bénéficiaire invalide.');
   } else {
-    const sp = normalizePhone($('sphone').value);
-    if (!sp) return showErr(err, 'Votre numéro Airtel Money est invalide (ex. 077 12 34 56).');
-    c.noFunds = sp.endsWith('9999');
-    if (state.payout === 'sepa') {
-      const iban = normalizeIban($('riban').value);
-      if (!iban) return showErr(err, 'IBAN invalide : vérifiez les chiffres (ex. FR76 …).');
-      c.account = `${iban.slice(0, 4)} •••• •••• ${iban.slice(-4)}`;
-      c.fails = /echec/i.test(c.name);
-    } else {
-      const em = $('remail').value.trim().toLowerCase();
-      if (!validEmail(em)) return showErr(err, 'Adresse e-mail PayPal invalide.');
-      c.account = em;
-      c.fails = em.startsWith('echec');
-    }
+    account = normIban($('raccount').value);
+    if (!account) return showErr(err, 'IBAN invalide : vérifiez les chiffres (ex. FR76 …).');
   }
-  if (c.name.length < 2) return showErr(err, 'Indiquez le nom du bénéficiaire.');
-  if ($('sname').value.trim().length < 2) return showErr(err, 'Indiquez votre nom.');
+  const rname = $('rname').value.trim(), sname = $('sname').value.trim();
+  if (rname.length < 3) return showErr(err, 'Indiquez le prénom et le nom du bénéficiaire.');
+  if (sname.length < 3) return showErr(err, 'Indiquez votre prénom et nom.');
+  if (senderKey().length < 6) return showErr(err, 'Indiquez un téléphone ou un e-mail pour vous joindre.');
   if (!$('confirm').checked) return showErr(err, 'Cochez la case pour confirmer les coordonnées du bénéficiaire.');
   showErr(err, '');
-  current = c;
-  const airtel = c.pay === 'airtel';
-  $('payTitle').textContent = airtel ? 'Validation Airtel Money' : c.pay === 'paypal' ? 'Paiement PayPal' : 'Paiement par carte';
-  $('payLead').textContent = airtel
-    ? 'Dans la vraie application, une notification arrive sur votre téléphone Airtel.'
-    : 'Dans la vraie application, cette étape ouvre la page de paiement sécurisée Stripe.';
-  $('pinBox').hidden = !airtel;
-  $('payBtn').textContent = airtel ? 'Simuler la saisie du code PIN' : 'Simuler le paiement';
-  $('payTotal').textContent = money(q.total, q.sendCur);
-  $('payFor').textContent = `${money(q.received, q.recvCur)} pour ${c.name}, frais inclus`;
-  show('viewPay');
+  const r = { code: newCode(), status: 'awaiting_payment', dir: state.dir, pay: state.pay, payout: state.payout, q,
+    account, rname, sname, contact: senderKey(), payerRef: '', payoutRef: '', created: new Date() };
+  state.requests.unshift(r);
+  state.current = r;
+  $('confirm').checked = false;
+  paintTrack();
+  paintOrga();
 });
 
-$('cancelBtn').addEventListener('click', () => show('send'));
-$('againBtn').addEventListener('click', () => show('send'));
-
-function setStep(s, failed) {
-  const order = ['paid', 'sending', 'done'];
-  const idx = order.indexOf(s);
-  for (const li of $('steps').children) {
-    const i = order.indexOf(li.dataset.s);
-    li.className = failed && i === idx ? 'fail' : i < idx || (i === idx && s === 'done') ? 'done' : i === idx ? 'now' : '';
-  }
+// ---------- Suivi (ami) ----------
+const STATUS = {
+  awaiting_payment: ['À payer : suivez les instructions ci-dessous', 'wait'],
+  declared: ["Paiement annoncé : l'organisateur vérifie la réception", 'wait'],
+  paid: ['Paiement reçu : envoi en cours', 'wait'],
+  completed: ['Argent envoyé ✓', 'ok'],
+  cancelled: ['Demande annulée', 'bad'],
+  refunded: ['Vous avez été remboursé', 'bad'],
+};
+function maskAccount(r) {
+  const a = r.account;
+  if (r.payout === 'airtel') return `${a.slice(0, 3)} •• •• ${a.slice(7)}`;
+  if (r.payout === 'sepa') return `${a.slice(0, 4)} •••• ${a.slice(-4)}`;
+  return `${a.slice(0, 2)}•••@${a.split('@')[1]}`;
 }
-function setStatus(text, kind) { $('status').textContent = text; $('status').className = 'status ' + kind; }
-function details(extra) {
-  const q = current.q;
+function fullAccount(r) {
+  if (r.payout === 'airtel') return fmtGa(r.account);
+  if (r.payout === 'sepa') return r.account.replace(/(.{4})/g, '$1 ').trim();
+  return r.account;
+}
+function paintTrack() {
+  const r = state.current;
+  $('formView').hidden = Boolean(r);
+  $('trackView').hidden = !r;
+  if (!r) return;
+  $('tCode').textContent = r.code;
+  const [label, kind] = STATUS[r.status];
+  $('tStatus').textContent = r.status === 'completed' ? `Argent envoyé sur ${LABEL[r.payout]} ✓` : label;
+  $('tStatus').className = 'status ' + kind;
+  const paying = ['awaiting_payment', 'declared'].includes(r.status);
+  $('tPay').hidden = !paying;
+  if (paying) {
+    const amount = money(r.q.total, r.q.sendCur);
+    $('tPayAmount').textContent = amount;
+    let to, steps;
+    if (r.pay === 'airtel') {
+      to = fmtGa(OP.airtel);
+      $('tPayTitle').textContent = 'Payer par Airtel Money';
+      steps = [`Envoyez ${amount} par Airtel Money au ${to} (${OP.name}).`, 'Gardez le SMS de confirmation Airtel : vous pourrez indiquer sa référence.'];
+    } else {
+      to = OP.paypal;
+      $('tPayTitle').textContent = 'Payer par PayPal';
+      steps = [`Envoyez ${amount} sur PayPal à ${to} (${OP.name}).`, `Indiquez le code ${r.code} dans le message.`];
+    }
+    $('tPayTo').textContent = to;
+    $('tCopyTo').onclick = () => copy(to.replace(/\s/g, ''), $('tCopyTo'));
+    $('tSteps').replaceChildren(...steps.map((s) => el('li', {}, s)));
+    $('tLink').hidden = true; // Le lien PayPal.me s'affiche quand OPERATOR_PAYPALME est renseigné.
+    $('tDeclare').hidden = r.status !== 'awaiting_payment';
+  }
   const rows = [
-    ['Bénéficiaire', `${current.name} (${PAYOUT_LABEL[current.payout]} ${current.account})`],
-    ['Montant reçu', money(q.received, q.recvCur)],
-    ['Montant envoyé', money(q.sent, q.sendCur)],
-    ['Frais', money(q.fee, q.sendCur)],
+    ['Bénéficiaire', `${r.rname} (${LABEL[r.payout]} ${maskAccount(r)})`],
+    ['Montant reçu', money(r.q.received, r.q.recvCur)],
+    ['Montant envoyé', money(r.q.sent, r.q.sendCur)],
+    ['Frais', money(r.q.fee, r.q.sendCur)],
   ];
-  if (q.discount) rows.push(['Premier envoi offert', '− ' + money(q.discount, q.sendCur)]);
-  rows.push(['Total payé', money(q.total, q.sendCur)]);
-  $('details').replaceChildren(...rows.concat(extra || []).map(([k, v]) => {
-    const d = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
-    dt.textContent = k; dd.textContent = v; d.append(dt, dd); return d;
-  }));
+  if (r.q.discount) rows.push(['Premier envoi offert', '− ' + money(r.q.discount, r.q.sendCur)]);
+  rows.push(['Total à payer', money(r.q.total, r.q.sendCur)]);
+  if (r.payoutRef) rows.push(["Référence de l'envoi", r.payoutRef]);
+  $('tDetails').replaceChildren(...rows.map(([k, v]) => el('div', {}, el('dt', {}, k), el('dd', {}, v))));
+}
+$('declareBtn').addEventListener('click', () => {
+  const r = state.current;
+  r.status = 'declared';
+  r.payerRef = $('payerRef').value.trim();
+  $('payerRef').value = '';
+  state.alerts.unshift(`🔔 ${r.code} : ${r.sname} dit avoir payé ${money(r.q.total, r.q.sendCur)} par ${LABEL[r.pay]}${r.payerRef ? ` (réf. ${r.payerRef})` : ''}.`);
+  paintTrack(); paintOrga();
+});
+$('cancelBtn').addEventListener('click', () => { state.current.status = 'cancelled'; paintTrack(); paintOrga(); });
+$('newBtn').addEventListener('click', () => { state.current = null; paintTrack(); render(); });
+
+// ---------- Organisateur ----------
+const ORGA_STATUS = { awaiting_payment: ['Pas encore payé', 'wait'], declared: ['Paiement annoncé', 'wait'], paid: ['Payé, à envoyer', 'wait'], completed: ['Envoyé', 'ok'], cancelled: ['Annulée', 'bad'], refunded: ['Remboursée', 'bad'] };
+function copyLine(label, value) {
+  const b = el('button', { type: 'button', className: 'ghost small' }, 'Copier');
+  b.addEventListener('click', () => copy(value, b));
+  return el('div', { className: 'line' }, el('span', {}, label), el('strong', {}, value), b);
+}
+function paintOrga() {
+  const todo = state.requests.filter((r) => ['declared', 'paid'].includes(r.status)).length;
+  $('todoBadge').hidden = !todo;
+  $('todoBadge').textContent = todo;
+  $('alerts').replaceChildren(...(state.alerts.length ? state.alerts.slice(0, 3).map((a) => el('div', { className: 'alert' }, a)) : [el('p', { className: 'fine' }, 'Aucune alerte pour le moment.')]));
+  const list = state.requests.slice().sort((a, b) => ({ declared: 0, paid: 1, awaiting_payment: 2 }[a.status] ?? 3) - ({ declared: 0, paid: 1, awaiting_payment: 2 }[b.status] ?? 3));
+  $('orgaList').replaceChildren(...(list.length ? list.map((r) => {
+    const pay = money(r.q.total, r.q.sendCur), give = money(r.q.received, r.q.recvCur);
+    const [label, kind] = ORGA_STATUS[r.status];
+    const open = ['awaiting_payment', 'declared', 'paid'].includes(r.status);
+    const ref = el('input', { type: 'text', placeholder: 'Référence de votre envoi (facultatif)', maxLength: 80 });
+    const actions = el('div', { className: 'actions' });
+    const act = (text, primary, fn) => { const b = el('button', { type: 'button', className: primary ? 'go' : 'ghost' }, text); b.addEventListener('click', () => { fn(); paintTrack(); paintOrga(); }); actions.append(b); };
+    if (['awaiting_payment', 'declared'].includes(r.status)) {
+      act('Paiement reçu ✓', true, () => { r.status = 'paid'; });
+      act('Pas reçu : annuler', false, () => { r.status = 'cancelled'; });
+    }
+    if (r.status === 'paid') {
+      act('Argent envoyé ✓', true, () => { r.status = 'completed'; r.payoutRef = ref.value.trim() || ('TEST-' + r.code.slice(3)); });
+      act("J'ai remboursé", false, () => { r.status = 'refunded'; });
+    }
+    const amountRaw = r.q.recvCur === 'EUR' ? r.q.received.toFixed(2).replace('.', ',') : String(r.q.received);
+    return el('article', { className: 'req' },
+      el('header', {}, el('h3', {}, `${r.code} · ${r.dir === 'fr_to_ga' ? 'France → Gabon' : 'Gabon → France'}`), el('span', { className: 'pill ' + kind }, label)),
+      el('div', {}, `${r.sname} paie ${pay} → ${r.rname} reçoit ${give}`),
+      el('small', { className: 'fine' }, `Frais gagnés : ${money(r.q.fee - r.q.discount, r.q.sendCur)}`),
+      open ? el('div', { className: 'todo-box' },
+        el('div', {}, `1. Vérifiez que vous avez reçu ${pay} sur votre ${LABEL[r.pay]}${r.payerRef ? ` (réf. ${r.payerRef})` : ''}.`),
+        el('div', {}, `2. Envoyez ${give} par ${LABEL[r.payout]} :`),
+        copyLine('À :', fullAccount(r)), copyLine('Montant :', amountRaw), copyLine('Motif :', r.code)) : null,
+      r.status === 'paid' ? ref : null,
+      actions.children.length ? actions : null);
+  }) : [el('div', { className: 'card empty' }, 'Aucune demande. Faites un envoi depuis la « Vue ami ».')]));
 }
 
-$('payBtn').addEventListener('click', async () => {
-  const c = current;
-  $('payBtn').disabled = true;
-  await wait(800);
-  $('payBtn').disabled = false;
-  show('viewTrack');
-  $('againBtn').hidden = true;
-  $('stepSending').textContent = c.payout === 'sepa' ? 'Virement bancaire en cours' : `Envoi vers ${PAYOUT_LABEL[c.payout]}`;
-  $('stepDone').textContent = c.payout === 'sepa' ? 'Argent sur le compte bancaire' : `Argent disponible sur ${PAYOUT_LABEL[c.payout]}`;
-  details();
-  if (c.noFunds) {
-    setStep('paid', true);
-    setStatus("Paiement non validé : solde Airtel insuffisant, rien n'a été débité", 'bad');
-    $('againBtn').hidden = false;
-    return;
-  }
-  setStep('paid'); setStatus('Paiement reçu', 'wait');
-  await wait(1200);
-  setStep('sending'); setStatus(c.payout === 'sepa' ? 'Virement en cours…' : `Envoi vers ${PAYOUT_LABEL[c.payout]} en cours…`, 'wait');
-  await wait(2200);
-  if (c.fails) {
-    const to = c.pay === 'airtel' ? 'sur votre Airtel Money' : c.pay === 'paypal' ? 'sur votre PayPal' : 'sur votre carte';
-    setStep('sending', true);
-    setStatus(`Échec de l'envoi : vous avez été remboursé ${to}`, 'bad');
-    details([['Remboursement', money(c.q.total, c.q.sendCur)]]);
-  } else {
-    state.senders.add(c.sender);
-    setStep('done');
-    setStatus(c.payout === 'sepa' ? 'Argent envoyé sur le compte bancaire ✓' : `Argent envoyé sur ${PAYOUT_LABEL[c.payout]} ✓`, 'ok');
-    details([['Référence', 'TEST-' + Math.random().toString(36).slice(2, 10).toUpperCase()]]);
-  }
-  $('againBtn').hidden = false;
-});
+function setView(orga) {
+  $('viewFriendBtn').setAttribute('aria-selected', String(!orga));
+  $('viewOrgaBtn').setAttribute('aria-selected', String(orga));
+  $('friendView').hidden = orga;
+  $('orgaView').hidden = !orga;
+  window.scrollTo(0, 0);
+}
+$('viewFriendBtn').addEventListener('click', () => setView(false));
+$('viewOrgaBtn').addEventListener('click', () => setView(true));
 
 render();
+paintOrga();
 </script>
+<style>.grid-gap { display: grid; gap: 14px; } #orgaView { display: grid; gap: 14px; } #orgaView[hidden] { display: none; }</style>
