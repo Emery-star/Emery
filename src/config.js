@@ -44,6 +44,24 @@ const config = {
   limits: {
     minEur: num(env.MIN_AMOUNT_EUR, 5),
     maxEur: num(env.MAX_AMOUNT_EUR, 1000),
+    // Plafonds cumulés par client (équivalent euros).
+    dailyEur: num(env.LIMIT_DAILY_EUR, 1000),
+    monthlyEur: num(env.LIMIT_MONTHLY_EUR, 3000),
+  },
+
+  // Fichier JSON des personnes sous sanctions (voir src/compliance/screening.js).
+  sanctionsFile: env.SANCTIONS_FILE || (env.MODE === 'live' ? '' : path.join(__dirname, 'compliance', 'sanctions-exemple.json')),
+
+  // E-mails de reçu via Brevo (https://www.brevo.com). Sans clé : affichés dans la console.
+  email: {
+    brevoApiKey: env.BREVO_API_KEY || '',
+    from: env.EMAIL_FROM || 'no-reply@example.com',
+    fromName: env.EMAIL_FROM_NAME || 'EnvoiGabon',
+  },
+
+  support: {
+    email: env.SUPPORT_EMAIL || '',
+    phone: env.SUPPORT_PHONE || '',
   },
 
   // Estimations indicatives des concurrents (frais fixes + marge de change).

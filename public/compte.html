@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mon compte – EnvoiGabon</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="account">
+  <header class="top"><div class="wrap"><a class="logo" href="/">Envoi<b>Gabon</b></a></div></header>
+  <main class="wrap">
+    <!-- Non connecté -->
+    <div id="authView" class="hidden">
+      <form id="loginForm" class="card" novalidate>
+        <h1>Se connecter</h1>
+        <label for="loginEmail">E-mail</label>
+        <input id="loginEmail" name="email" type="email" autocomplete="email" required>
+        <label for="loginPassword">Mot de passe</label>
+        <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+        <p id="loginError" class="error hidden"></p>
+        <button class="primary" type="submit">Se connecter</button>
+      </form>
+
+      <form id="registerForm" class="card" novalidate>
+        <h2>Pas encore de compte ?</h2>
+        <p class="lead">Gratuit. Votre premier envoi est sans frais.</p>
+        <label for="regName">Prénom et nom (comme sur votre pièce d’identité)</label>
+        <input id="regName" name="fullName" autocomplete="name" required maxlength="100">
+        <label for="regEmail">E-mail</label>
+        <input id="regEmail" name="email" type="email" autocomplete="email" required>
+        <label for="regPassword">Mot de passe (10 caractères minimum)</label>
+        <input id="regPassword" name="password" type="password" autocomplete="new-password" minlength="10" required>
+        <p class="fine">En créant un compte, vous acceptez les <a href="/cgu.html">conditions générales</a> et la <a href="/confidentialite.html">politique de confidentialité</a>.</p>
+        <p id="registerError" class="error hidden"></p>
+        <button class="primary" type="submit">Créer mon compte</button>
+      </form>
+    </div>
+
+    <!-- Connecté -->
+    <div id="accountView" class="hidden">
+      <section class="card">
+        <h1 id="meName"></h1>
+        <p class="lead" id="meEmail"></p>
+        <div id="kycStatus" class="status"></div>
+        <p id="firstBadge" class="notice hidden">Votre premier envoi est sans frais.</p>
+        <a id="sendLink" href="/" class="primary link hidden">Envoyer de l’argent</a>
+        <button id="logout" type="button" class="secondary">Se déconnecter</button>
+      </section>
+
+      <form id="kycForm" class="card hidden" novalidate>
+        <h2>Vérifier mon identité</h2>
+        <p class="lead">Obligatoire pour tout service de transfert d’argent (lutte contre le blanchiment). Vos informations sont protégées.</p>
+        <label for="kycName">Prénom et nom</label>
+        <input id="kycName" name="fullName" required maxlength="100">
+        <label for="kycBirth">Date de naissance</label>
+        <input id="kycBirth" name="birthDate" type="date" required>
+        <label for="kycCountry">Pays de résidence</label>
+        <select id="kycCountry" name="country" required>
+          <option value="FR">France</option>
+          <option value="GA">Gabon</option>
+          <option value="BE">Belgique</option>
+          <option value="DE">Allemagne</option>
+          <option value="ES">Espagne</option>
+          <option value="IT">Italie</option>
+          <option value="LU">Luxembourg</option>
+          <option value="NL">Pays-Bas</option>
+          <option value="PT">Portugal</option>
+          <option value="CH">Suisse</option>
+          <option value="MC">Monaco</option>
+          <option value="IE">Irlande</option>
+          <option value="AT">Autriche</option>
+        </select>
+        <label for="kycAddress">Adresse complète</label>
+        <input id="kycAddress" name="address" autocomplete="street-address" required maxlength="300">
+        <label for="kycIdType">Pièce d’identité</label>
+        <select id="kycIdType" name="idType" required>
+          <option value="passeport">Passeport</option>
+          <option value="carte_identite">Carte nationale d’identité</option>
+          <option value="titre_sejour">Titre de séjour</option>
+        </select>
+        <label for="kycIdNumber">Numéro de la pièce</label>
+        <input id="kycIdNumber" name="idNumber" required maxlength="20" autocomplete="off">
+        <label for="kycPhone">Numéro Airtel Money (facultatif, pour envoyer depuis le Gabon)</label>
+        <input id="kycPhone" name="phone" type="tel" placeholder="077 12 34 56">
+        <p id="kycError" class="error hidden"></p>
+        <button class="primary" type="submit">Envoyer pour vérification</button>
+      </form>
+
+      <section class="card">
+        <h2>Mes envois</h2>
+        <ul id="history" class="history"></ul>
+      </section>
+    </div>
+  </main>
+  <footer class="foot wrap">
+    <a href="/cgu.html">Conditions générales</a>
+    <a href="/confidentialite.html">Confidentialité</a>
+    <a href="/mentions-legales.html">Mentions légales</a>
+  </footer>
+  <script src="/app.js"></script>
+</body>
+</html>

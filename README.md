@@ -42,6 +42,22 @@ PIN (API Collection) → virement SEPA vers l'IBAN ou versement PayPal (API Payo
 
 Une page de suivi affiche l'état en temps réel.
 
+### Clients et conformité
+
+- **Compte client** (`/compte.html`) : inscription par e-mail et mot de passe (haché avec scrypt), session par
+  cookie `HttpOnly`, historique des envois.
+- **Vérification d'identité obligatoire** avant le premier envoi : nom, date de naissance (18 ans minimum), adresse,
+  pièce d'identité. En démo elle est simulée ; en live, chaque dossier attend la décision de l'équipe jusqu'au
+  branchement d'un prestataire (Ubble, Onfido, Sumsub… voir `src/compliance/kyc.js`, webhook `/webhooks/kyc`).
+- **Listes de sanctions** : clients et bénéficiaires sont comparés à la liste `SANCTIONS_FILE`. Un client listé
+  reste « en attente » ; un envoi vers un bénéficiaire listé est bloqué avec un message neutre.
+- **Plafonds cumulés** : 1 000 € par 24 h et 3 000 € sur 30 jours par client (réglables).
+- **Reçus par e-mail** à la fin de chaque envoi (arrivé, remboursé ou annulé), via Brevo.
+- **Espace équipe** (`/admin.html`, jeton `ADMIN_TOKEN`) : liste des envois et des clients, validation ou refus des
+  identités, et décision sur les envois bloqués « en vérification » (versé, rembourser, annuler).
+- **Pages légales** (`/cgu.html`, `/confidentialite.html`, `/mentions-legales.html`) : projets de texte à faire
+  valider par un juriste ; les passages surlignés sont à compléter.
+
 ### Sécurité de l'argent
 
 - Un paiement ne peut déclencher qu'**un seul** versement (transitions d'état atomiques, webhooks idempotents,
@@ -55,6 +71,8 @@ Une page de suivi affiche l'état en temps réel.
 - Les callbacks Airtel ne sont pas pris pour argent comptant : le statut est revérifié auprès de l'API.
 - En mode `live`, aucun simulateur n'est utilisé : un moyen sans prestataire configuré n'est pas proposé.
 - IBAN vérifiés (longueur par pays et clé de contrôle), pages de suivi protégées par jeton, limitation de débit, CSP stricte.
+- Protection CSRF : les requêtes qui modifient des données doivent être en JSON, cookie `SameSite=Lax`.
+- En live, le serveur refuse de démarrer sans liste de sanctions, sans `ADMIN_TOKEN` solide ou sans HTTPS.
 
 ## Démarrer
 
@@ -66,6 +84,8 @@ npm start          # http://localhost:3000, en mode démo (tout simulé)
 npm test
 ```
 
+En démo, le jeton de l'espace équipe est affiché dans la console au démarrage (ou fixez `ADMIN_TOKEN`).
+
 Scénarios de test en mode démo :
 
 | Saisie | Résultat simulé |
@@ -75,6 +95,8 @@ Scénarios de test en mode démo :
 | numéro finissant par `0000` | compte Airtel introuvable |
 | e-mail PayPal commençant par `echec` | versement PayPal refusé, remboursement |
 | nom du bénéficiaire contenant `echec` (IBAN) | virement rejeté, remboursement |
+| nom du client contenant `refus` | vérification d'identité refusée |
+| nom `Sanction Test Personne` (client ou bénéficiaire) | correspondance liste de sanctions |
 
 ## Passer en réel (`MODE=live`)
 
@@ -93,7 +115,10 @@ Copier `.env.example` en `.env` et remplir :
   écrire le client de l'établissement choisi.
 - **Wero** : les paiements Wero entre particuliers et commerçants passent par les banques et prestataires
   membres d'EPI. Il n'y a pas d'API publique directe : à activer quand votre prestataire de paiement le propose.
-- Liste des transferts : `GET /api/admin/transfers` avec `Authorization: Bearer <ADMIN_TOKEN>`.
+- **Vérification d'identité** : brancher le client de votre prestataire dans `src/compliance/kyc.js`.
+- **Liste de sanctions** : `SANCTIONS_FILE`, alimenté chaque jour depuis le registre national des gels (DG Trésor),
+  la liste consolidée de l'UE et celle de l'ONU, ou remplacer `src/compliance/screening.js` par un prestataire.
+- **E-mails** : `BREVO_API_KEY` et une adresse d'expédition sur votre domaine.
 
 > À vérifier avec Airtel lors de l'intégration : le format exact du `msisdn` attendu pour le Gabon
 > (avec ou sans le `0` initial, voir `src/phone.js`) et la clé publique de chiffrement du PIN.
@@ -106,7 +131,9 @@ Transférer de l'argent pour le compte de tiers est une activité réglementée.
 - **Au Gabon / CEMAC** : partenariat officiel avec Airtel Money Gabon et respect des règles COBAC / BEAC sur les
   transferts internationaux.
 - **LCB-FT** : vérification d'identité (KYC) des expéditeurs, plafonds, filtrage des listes de sanctions,
-  déclarations de soupçon. L'application inclut des plafonds par envoi mais **pas** encore de KYC expéditeur.
+  déclarations de soupçon. L'application gère la vérification d'identité, le filtrage et les plafonds ; les
+  déclarations de soupçon (Tracfin) et la vérification de l'origine des fonds restent à organiser avec votre
+  établissement partenaire.
 
 ## Modèle économique
 
@@ -124,6 +151,9 @@ src/
   server.js             démarrage, réconciliation périodique
   app.js                routes HTTP (API, webhooks, fichiers statiques)
   transfers.js          cycle de vie d'un transfert (paiement → versement → remboursement)
+  users.js              comptes clients, sessions, vérification d'identité
+  notifier.js           reçus par e-mail (Brevo, ou console en démo)
+  compliance/           KYC, listes de sanctions, plafonds
   rails.js              moyens de paiement et de versement, par sens d'envoi
   fees.js               calcul des frais et comparaison
   phone.js, validate.js numéros Airtel Gabon, IBAN, e-mails
@@ -131,7 +161,7 @@ src/
   providers/payments.js Stripe Checkout, carte et PayPal (+ simulateur)
   providers/paypal.js   PayPal Payouts (+ simulateur)
   providers/sepa.js     virements SEPA (simulateur, client réel à brancher)
-public/                 interface web (accueil, suivi, paiement simulé)
+public/                 interface web (accueil, compte, suivi, espace équipe, pages légales)
 demo/                   version test autonome, sans serveur
 test/                   tests (node --test)
 ```

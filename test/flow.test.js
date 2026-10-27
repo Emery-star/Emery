@@ -11,9 +11,15 @@ const { MockSepaClient } = require('../src/providers/sepa');
 const { createRails } = require('../src/rails');
 const { createTransferService } = require('../src/transfers');
 const { createApp } = require('../src/app');
+const { createUserService } = require('../src/users');
+const { MockKyc } = require('../src/compliance/kyc');
+const { createScreening } = require('../src/compliance/screening');
+const { createLimits } = require('../src/compliance/limits');
+const { ConsoleNotifier } = require('../src/notifier');
 
 const quiet = { error() {}, warn() {}, log() {} };
-const config = { ...baseConfig, mode: 'demo' };
+const ADMIN = 'jeton-admin-de-test-0123456789';
+const config = { ...baseConfig, mode: 'demo', adminToken: ADMIN, limits: { ...baseConfig.limits, dailyEur: 1000, monthlyEur: 3000 } };
 
 function setup() {
   const db = openDb(':memory:');
@@ -22,31 +28,53 @@ function setup() {
     payments: new MockPayments('http://test'),
     paypal: new MockPaypalClient(),
     sepa: new MockSepaClient(),
+    kyc: new MockKyc(),
+    notifier: new ConsoleNotifier(quiet),
+    screening: createScreening(baseConfig.sanctionsFile),
   };
   const rails = createRails({ config, ...p });
-  const transfers = createTransferService({ db, config, rails, logger: quiet });
-  return { ...p, rails, transfers };
+  const users = createUserService({ db, kyc: p.kyc, screening: p.screening, logger: quiet });
+  const transfers = createTransferService({
+    db, config, rails, users, notifier: p.notifier, screening: p.screening, limits: createLimits({ db, config }), logger: quiet,
+  });
+  return { ...p, db, rails, users, transfers };
 }
+
+const identity = { birthDate: '1990-05-12', country: 'FR', address: '12 rue de la Paix, 75002 Paris', idType: 'passeport', idNumber: '18AB12345' };
 
 async function startApp() {
   const s = setup();
-  const app = createApp({ config, transfers: s.transfers, rails: s.rails, airtel: s.airtel, payments: s.payments, logger: quiet });
+  const app = createApp({ config, transfers: s.transfers, users: s.users, rails: s.rails, airtel: s.airtel, payments: s.payments, kyc: s.kyc, logger: quiet });
   const server = await new Promise((r) => { const srv = app.listen(0, () => r(srv)); });
   const base = `http://127.0.0.1:${server.address().port}`;
+  let cookie = '';
   const call = async (path, opts = {}) => {
-    const res = await fetch(base + path, { ...opts, headers: { 'Content-Type': 'application/json' } });
+    const headers = { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}), ...(opts.headers || {}) };
+    const res = await fetch(base + path, { ...opts, headers });
+    const set = res.headers.get('set-cookie');
+    if (set) cookie = set.split(';')[0];
     return { status: res.status, body: await res.json() };
   };
-  const post = (path, body) => call(path, { method: 'POST', body: JSON.stringify(body || {}) });
-  return { ...s, server, call, post };
+  const post = (path, body, opts) => call(path, { method: 'POST', body: JSON.stringify(body || {}), ...opts });
+  /** Crée un compte, se connecte et fait vérifier l'identité (simulée). */
+  async function signup(fullName = 'Marie Ndong', email = 'marie@example.com', kyc = {}) {
+    cookie = '';
+    assert.strictEqual((await post('/api/auth/register', { fullName, email, password: 'motdepasse-solide' })).status, 201);
+    return post('/api/me/kyc', { fullName, ...identity, ...kyc });
+  }
+  const admin = (path, body) => (body === undefined
+    ? call(path, { headers: { Authorization: `Bearer ${ADMIN}` } })
+    : post(path, body, { headers: { Authorization: `Bearer ${ADMIN}` } }));
+  return { ...s, server, call, post, signup, admin, logout: () => { cookie = ''; } };
 }
 
-const frSender = { senderName: 'Marie Ndong', senderEmail: 'marie@example.com', recipientName: 'Paul Obame' };
-const gaSender = { senderName: 'Paul Obame', senderPhone: '077 12 34 56', recipientName: 'Marie Ndong' };
+const frSender = { recipientName: 'Paul Obame' };
+const gaSender = { senderPhone: '077 12 34 56', recipientName: 'Marie Ndong' };
 
-test('France -> Gabon : paiement carte puis dépôt Airtel, premier envoi offert', async (t) => {
-  const { server, call, post, airtel } = await startApp();
+test('France -> Gabon : paiement carte puis dépôt Airtel, premier envoi offert, reçu par e-mail', async (t) => {
+  const { server, call, post, airtel, signup, notifier } = await startApp();
   t.after(() => server.close());
+  await signup();
 
   const created = await post('/api/transfers', { ...frSender, amount: 50, recipientPhone: '077 12 34 56' });
   assert.strictEqual(created.status, 201);
@@ -67,11 +95,20 @@ test('France -> Gabon : paiement carte puis dépôt Airtel, premier envoi offert
   // Le deuxième envoi du même expéditeur paie les frais normaux.
   const second = await post('/api/transfers', { ...frSender, amount: 50, recipientPhone: '077 12 34 56' });
   assert.strictEqual(second.body.quote.discount, 0);
+
+  assert.strictEqual(notifier.sent.length, 1);
+  assert.strictEqual(notifier.sent[0].to, 'marie@example.com');
+  assert.match(notifier.sent[0].subject, /est arrivé/);
+  assert.match(notifier.sent[0].text, /32\s797 FCFA/);
+
+  const history = await call('/api/me/transfers');
+  assert.strictEqual(history.body.length, 2);
 });
 
 test('France -> Gabon : échec Airtel => remboursement', async (t) => {
-  const { server, call, post, payments } = await startApp();
+  const { server, call, post, payments , signup } = await startApp();
   t.after(() => server.close());
+  await signup();
   const created = await post('/api/transfers', { ...frSender, amount: 20, recipientPhone: '077119999', payMethod: 'paypal' });
   const session = new URL(created.body.checkoutUrl).searchParams.get('session');
   await post(`/api/mock-checkout/${session}/complete`);
@@ -81,8 +118,9 @@ test('France -> Gabon : échec Airtel => remboursement', async (t) => {
 });
 
 test('Gabon -> France : paiement Airtel (code PIN) puis virement SEPA', async (t) => {
-  const { server, call, post, sepa } = await startApp();
+  const { server, call, post, sepa , signup } = await startApp();
   t.after(() => server.close());
+  await signup();
   const created = await post('/api/transfers', {
     ...gaSender, direction: 'ga_to_fr', payoutMethod: 'sepa', amount: 65596, recipientIban: 'FR76 3000 6000 0112 3456 7890 189',
   });
@@ -100,8 +138,9 @@ test('Gabon -> France : paiement Airtel (code PIN) puis virement SEPA', async (t
 });
 
 test('Gabon -> France : PayPal refusé => remboursement sur Airtel Money', async (t) => {
-  const { server, post, airtel } = await startApp();
+  const { server, post, airtel , signup } = await startApp();
   t.after(() => server.close());
+  await signup();
   const created = await post('/api/transfers', {
     ...gaSender, direction: 'ga_to_fr', payoutMethod: 'paypal', amount: 20000, recipientEmail: 'echec@example.com',
   });
@@ -111,8 +150,9 @@ test('Gabon -> France : PayPal refusé => remboursement sur Airtel Money', async
 });
 
 test('Gabon -> France : solde insuffisant => paiement annulé, rien n’est versé', async (t) => {
-  const { server, post, sepa } = await startApp();
+  const { server, post, sepa , signup } = await startApp();
   t.after(() => server.close());
+  await signup();
   const created = await post('/api/transfers', {
     ...gaSender, senderPhone: '077119999', direction: 'ga_to_fr', payoutMethod: 'sepa', amount: 20000,
     recipientIban: 'FR7630006000011234567890189',
@@ -123,8 +163,9 @@ test('Gabon -> France : solde insuffisant => paiement annulé, rien n’est vers
 });
 
 test('refuse les saisies invalides et Wero (pas encore branché)', async (t) => {
-  const { server, post } = await startApp();
+  const { server, post , signup } = await startApp();
   t.after(() => server.close());
+  await signup();
   const cases = [
     { ...frSender, amount: 20, recipientPhone: '066123456' },
     { ...frSender, amount: 99999, recipientPhone: '077123456' },
@@ -136,8 +177,9 @@ test('refuse les saisies invalides et Wero (pas encore branché)', async (t) => 
 });
 
 test('le suivi exige le jeton d’accès', async (t) => {
-  const { server, call, post } = await startApp();
+  const { server, call, post , signup } = await startApp();
   t.after(() => server.close());
+  await signup();
   const created = await post('/api/transfers', { ...frSender, amount: 20, recipientPhone: '077123456' });
   assert.strictEqual((await call(`/api/transfers/${created.body.id}?t=mauvais`)).status, 404);
 });
@@ -146,8 +188,10 @@ test('erreur réseau au versement : pas de remboursement aveugle, réconciliatio
   const s = setup();
   const realDisburse = s.airtel.disburse.bind(s.airtel);
   s.airtel.disburse = async () => { throw new Error('ETIMEDOUT'); };
+  const u = await s.users.register({ email: 'a@b.fr', password: 'motdepasse-solide', fullName: 'Awa Mba' });
+  await s.users.submitKyc(u.id, { fullName: 'Awa Mba', ...identity });
 
-  const c = await s.transfers.create({ ...frSender, amount: 30, recipientPhone: '077123456' });
+  const c = await s.transfers.create(s.users.find(u.id), { ...frSender, amount: 30, recipientPhone: '077123456' });
   const tr = s.transfers.findByCheckout(new URL(c.checkoutUrl).searchParams.get('session'));
   await s.transfers.onPaymentConfirmed({ transferId: tr.id, checkoutId: tr.checkout_id, paymentRef: 'pi_1' });
   assert.strictEqual(s.transfers.getPublic(c.id, c.accessToken).status, 'sending');
@@ -210,4 +254,108 @@ test('client PayPal : versement en euros vers un e-mail', async () => {
   assert.deepStrictEqual(item.amount, { value: '12.50', currency: 'EUR' });
   assert.strictEqual(item.receiver, 'x@y.fr');
   assert.strictEqual((await client.status('BATCH1')).status, 'success');
+});
+
+test('comptes : inscription, connexion, mauvais mot de passe, déconnexion', async (t) => {
+  const { server, call, post, logout } = await startApp();
+  t.after(() => server.close());
+  assert.strictEqual((await post('/api/auth/register', { fullName: 'Awa', email: 'awa@ex.fr', password: 'motdepasse-solide' })).status, 400);
+  assert.strictEqual((await post('/api/auth/register', { fullName: 'Awa Mba', email: 'awa@ex.fr', password: 'court' })).status, 400);
+  assert.strictEqual((await post('/api/auth/register', { fullName: 'Awa Mba', email: 'awa@ex.fr', password: 'motdepasse-solide' })).status, 201);
+  assert.strictEqual((await post('/api/auth/register', { fullName: 'Awa Mba', email: 'AWA@ex.fr', password: 'motdepasse-solide' })).status, 400);
+  assert.strictEqual((await call('/api/me')).body.email, 'awa@ex.fr');
+  await post('/api/auth/logout');
+  logout();
+  assert.strictEqual((await call('/api/me')).status, 401);
+  assert.strictEqual((await post('/api/auth/login', { email: 'awa@ex.fr', password: 'mauvais-mot-de-passe' })).status, 400);
+  assert.strictEqual((await post('/api/auth/login', { email: 'inconnu@ex.fr', password: 'motdepasse-solide' })).status, 400);
+  const ok = await post('/api/auth/login', { email: 'awa@ex.fr', password: 'motdepasse-solide' });
+  assert.strictEqual(ok.status, 200);
+  assert.strictEqual((await call('/api/me')).body.kycStatus, 'none');
+});
+
+test('envoi impossible sans connexion, sans identité vérifiée, ou avec un formulaire non JSON', async (t) => {
+  const { server, call, post } = await startApp();
+  t.after(() => server.close());
+  const body = { ...frSender, amount: 20, recipientPhone: '077123456' };
+  assert.strictEqual((await post('/api/transfers', body)).status, 401);
+  await post('/api/auth/register', { fullName: 'Awa Mba', email: 'awa@ex.fr', password: 'motdepasse-solide' });
+  const r = await post('/api/transfers', body);
+  assert.strictEqual(r.status, 400);
+  assert.match(r.body.error, /identité/);
+  const form = await call('/api/transfers', { method: 'POST', body: 'amount=20', headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+  assert.strictEqual(form.status, 415);
+});
+
+test('KYC : refus simulé, puis nouvelle demande acceptée ; mineur refusé', async (t) => {
+  const { server, call, post, signup } = await startApp();
+  t.after(() => server.close());
+  const refused = await signup('Refus Test', 'r@ex.fr');
+  assert.strictEqual(refused.body.status, 'rejected');
+  assert.strictEqual((await call('/api/me')).body.kycStatus, 'rejected');
+  const minor = await post('/api/me/kyc', { fullName: 'Awa Mba', ...identity, birthDate: '2015-01-01' });
+  assert.strictEqual(minor.status, 400);
+  const ok = await post('/api/me/kyc', { fullName: 'Awa Mba', ...identity });
+  assert.strictEqual(ok.body.status, 'approved');
+});
+
+test('sanctions : un client listé reste en attente, un bénéficiaire listé est bloqué', async (t) => {
+  const { server, call, post, signup, admin } = await startApp();
+  t.after(() => server.close());
+  const listed = await signup('Personne Sanction Test', 's@ex.fr');
+  assert.strictEqual(listed.body.status, 'pending');
+  const pending = await admin('/api/admin/users?kyc=pending');
+  assert.strictEqual(pending.body.length, 1);
+  assert.match(pending.body[0].kycReason, /Correspondance/);
+
+  await signup('Marie Ndong', 'm@ex.fr');
+  const r = await post('/api/transfers', { recipientName: 'Test Sanction Personne', amount: 20, recipientPhone: '077123456' });
+  assert.strictEqual(r.status, 400);
+  assert.match(r.body.error, /support/);
+});
+
+test('plafond cumulé sur 24 h', async (t) => {
+  const { server, post, signup } = await startApp();
+  t.after(() => server.close());
+  await signup();
+  for (let i = 0; i < 2; i++) {
+    assert.strictEqual((await post('/api/transfers', { ...frSender, amount: 450, recipientPhone: '077123456' })).status, 201);
+  }
+  const over = await post('/api/transfers', { ...frSender, amount: 150, recipientPhone: '077123456' });
+  assert.strictEqual(over.status, 400);
+  assert.match(over.body.error, /Plafond de 1000 €/);
+});
+
+test('admin : jeton requis, validation KYC manuelle et décision sur un envoi bloqué', async (t) => {
+  const s = await startApp();
+  t.after(() => s.server.close());
+  assert.strictEqual((await s.call('/api/admin/transfers')).status, 401);
+  assert.strictEqual((await s.call('/api/admin/transfers', { headers: { Authorization: 'Bearer mauvais' } })).status, 401);
+
+  // Validation manuelle d'un dossier en attente.
+  await s.signup('Personne Sanction Test', 's@ex.fr');
+  const [u] = (await s.admin('/api/admin/users?kyc=pending')).body;
+  assert.strictEqual((await s.admin(`/api/admin/users/${u.id}/kyc`, { decision: 'approved' })).body.kycStatus, 'approved');
+
+  // Un versement resté sans réponse claire passe en vérification, puis l'équipe rembourse.
+  const created = await s.post('/api/transfers', { ...frSender, amount: 40, recipientPhone: '077123456' });
+  s.airtel.disburse = async () => { throw new Error('ETIMEDOUT'); };
+  const session = new URL(created.body.checkoutUrl).searchParams.get('session');
+  await s.post(`/api/mock-checkout/${session}/complete`);
+  const id = created.body.id;
+  assert.strictEqual((await s.admin('/api/admin/transfers?status=sending')).body.length, 1);
+  // Refus tant que le transfert n'est pas « en vérification ».
+  assert.strictEqual((await s.admin(`/api/admin/transfers/${id}/resolve`, { outcome: 'refund' })).status, 400);
+
+  // Simule 6 h sans réponse claire d'Airtel.
+  s.airtel.status = async () => ({ status: 'pending' });
+  s.db.prepare("UPDATE transfers SET updated_at = '2000-01-01T00:00:00.000Z' WHERE id = ?").run(id);
+  await s.admin(`/api/admin/transfers/${id}/recheck`, {});
+  assert.strictEqual(s.transfers.find(id).status, 'needs_review');
+
+  assert.strictEqual((await s.admin(`/api/admin/transfers/${id}/resolve`, { outcome: 'cancel' })).status, 400);
+  const done = await s.admin(`/api/admin/transfers/${id}/resolve`, { outcome: 'refund' });
+  assert.strictEqual(done.body.status, 'refunded');
+  assert.strictEqual(s.payments.refunds.length, 1);
+  assert.match(s.notifier.sent.at(-1).subject, /remboursé/);
 });

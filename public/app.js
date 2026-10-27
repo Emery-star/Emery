@@ -24,7 +24,25 @@ function initSend() {
   const params = new URLSearchParams(location.search);
   if (params.has('annule')) $('cancelled').classList.remove('hidden');
 
-  const state = { direction: 'fr_to_ga', pay: 'card', payout: 'airtel', methods: null, amounts: { fr_to_ga: 100, ga_to_fr: 65000 } };
+  const state = { direction: 'fr_to_ga', pay: 'card', payout: 'airtel', methods: null, amounts: { fr_to_ga: 100, ga_to_fr: 65000 }, me: null };
+
+  api('/api/me').then((me) => {
+    state.me = me;
+    $('accountLink').textContent = 'Mon compte';
+    if (me.phone && !$('senderPhone').value) $('senderPhone').value = me.phone;
+    if (me.kycStatus !== 'approved') {
+      notice('Vérifiez votre identité dans votre compte avant votre premier envoi.', '/compte.html', 'Vérifier mon identité');
+    }
+  }).catch(() => {
+    notice('Créez un compte gratuit ou connectez-vous pour envoyer de l’argent.', '/compte.html', 'Se connecter');
+  });
+
+  function notice(text, href, label) {
+    const el = $('authNotice');
+    const a = Object.assign(document.createElement('a'), { href, textContent: label });
+    el.replaceChildren(document.createTextNode(text + ' '), a);
+    el.classList.remove('hidden');
+  }
 
   function renderChips(container, list, key) {
     container.replaceChildren(...list.map((m) => {
@@ -129,6 +147,7 @@ function initSend() {
 
   $('sendForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!state.me) return show($('formError'), 'Connectez-vous pour envoyer de l’argent.');
     if (!$('confirm').checked) return show($('formError'), 'Cochez la case pour confirmer les coordonnées du bénéficiaire.');
     $('submit').disabled = true;
     show($('formError'), '');
@@ -144,8 +163,6 @@ function initSend() {
           recipientPhone: $('recipientPhone').value,
           recipientIban: $('recipientIban').value,
           recipientEmail: $('recipientEmail').value,
-          senderName: $('senderName').value,
-          senderEmail: $('senderEmail').value,
           senderPhone: $('senderPhone').value,
         }),
       });
@@ -243,4 +260,79 @@ function initMockPay() {
   });
 }
 
-({ send: initSend, track: initTrack, mockpay: initMockPay })[document.body.dataset.page]();
+function el(tag, props, ...children) {
+  const node = Object.assign(document.createElement(tag), props || {});
+  node.append(...children);
+  return node;
+}
+
+const KYC_LABEL = {
+  none: ['Identité non vérifiée', 'pending'],
+  pending: ['Vérification d’identité en cours', 'pending'],
+  approved: ['Identité vérifiée ✓', 'ok'],
+  rejected: ['Vérification refusée', 'bad'],
+};
+
+function initAccount() {
+  const formJson = (form) => Object.fromEntries(new FormData(form).entries());
+
+  async function load() {
+    let me;
+    try {
+      me = await api('/api/me');
+    } catch {
+      $('authView').classList.remove('hidden');
+      $('accountView').classList.add('hidden');
+      return;
+    }
+    $('authView').classList.add('hidden');
+    $('accountView').classList.remove('hidden');
+    $('meName').textContent = me.fullName;
+    $('meEmail').textContent = me.email;
+    const [label, kind] = KYC_LABEL[me.kycStatus];
+    $('kycStatus').textContent = label + (me.kycReason ? ` : ${me.kycReason}` : '');
+    $('kycStatus').className = `status ${kind}`;
+    const canSubmit = me.kycStatus === 'none' || me.kycStatus === 'rejected';
+    $('kycForm').classList.toggle('hidden', !canSubmit);
+    $('sendLink').classList.toggle('hidden', me.kycStatus !== 'approved');
+    if (canSubmit) {
+      const f = $('kycForm');
+      f.fullName.value = f.fullName.value || me.fullName;
+      if (me.phone) f.phone.value = me.phone;
+      if (me.country) f.country.value = me.country;
+    }
+    $('firstBadge').classList.toggle('hidden', !me.firstTransfer);
+
+    const list = await api('/api/me/transfers');
+    $('history').replaceChildren(...(list.length ? list.map((t) => {
+      const [st, kind2] = statusLabel(t);
+      return el('li', {},
+        el('a', { href: `/suivi.html?id=${t.id}&t=${t.accessToken}` },
+          el('strong', {}, `${money(t.receiveAmount, t.receiveCurrency)} → ${t.recipientName}`),
+          el('span', { className: `pill ${kind2}` }, st),
+          el('small', {}, new Date(t.createdAt).toLocaleString('fr-FR'))));
+    }) : [el('li', { className: 'empty' }, 'Aucun envoi pour le moment.')]));
+  }
+
+  async function submit(form, path, errId) {
+    show($(errId), '');
+    try {
+      await api(path, { method: 'POST', body: JSON.stringify(formJson(form)) });
+      form.reset();
+      await load();
+    } catch (err) {
+      show($(errId), err.message);
+    }
+  }
+
+  $('loginForm').addEventListener('submit', (e) => { e.preventDefault(); submit(e.target, '/api/auth/login', 'loginError'); });
+  $('registerForm').addEventListener('submit', (e) => { e.preventDefault(); submit(e.target, '/api/auth/register', 'registerError'); });
+  $('kycForm').addEventListener('submit', (e) => { e.preventDefault(); submit(e.target, '/api/me/kyc', 'kycError'); });
+  $('logout').addEventListener('click', async () => {
+    await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    load();
+  });
+  load();
+}
+
+({ send: initSend, track: initTrack, mockpay: initMockPay, account: initAccount })[document.body.dataset.page]();

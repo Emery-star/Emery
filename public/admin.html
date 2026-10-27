@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Espace équipe – EnvoiGabon</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="top"><div class="wrap wide"><span class="logo">Envoi<b>Gabon</b> · équipe</span><button id="adminLogout" class="account hidden" type="button">Quitter</button></div></header>
+  <main class="wrap wide">
+    <form id="tokenForm" class="card" novalidate>
+      <h1>Espace équipe</h1>
+      <label for="token">Jeton administrateur</label>
+      <input id="token" type="password" autocomplete="off">
+      <p id="tokenError" class="error hidden"></p>
+      <button class="primary" type="submit">Entrer</button>
+    </form>
+
+    <div id="adminView" class="hidden">
+      <section class="card">
+        <h2>Envois</h2>
+        <div class="row-filters">
+          <label for="tStatus">Statut</label>
+          <select id="tStatus">
+            <option value="">Tous</option>
+            <option value="needs_review" selected>À vérifier</option>
+            <option value="awaiting_payment">En attente de paiement</option>
+            <option value="sending">Versement en cours</option>
+            <option value="completed">Terminés</option>
+            <option value="refunded">Remboursés</option>
+            <option value="failed">Échecs (remboursement à faire)</option>
+            <option value="cancelled">Annulés</option>
+          </select>
+          <button type="button" id="tReload" class="secondary">Actualiser</button>
+        </div>
+        <p id="tError" class="error hidden"></p>
+        <div class="scroll"><table class="admin">
+          <thead><tr><th>Date</th><th>Statut</th><th>Sens</th><th>Expéditeur</th><th>Bénéficiaire</th><th>Payé</th><th>Reçu</th><th>Actions</th></tr></thead>
+          <tbody id="tBody"></tbody>
+        </table></div>
+      </section>
+
+      <section class="card">
+        <h2>Clients</h2>
+        <div class="row-filters">
+          <label for="uKyc">Identité</label>
+          <select id="uKyc">
+            <option value="pending" selected>À vérifier</option>
+            <option value="">Tous</option>
+            <option value="approved">Vérifiés</option>
+            <option value="rejected">Refusés</option>
+            <option value="none">Non soumis</option>
+          </select>
+          <button type="button" id="uReload" class="secondary">Actualiser</button>
+        </div>
+        <p id="uError" class="error hidden"></p>
+        <div class="scroll"><table class="admin">
+          <thead><tr><th>Inscrit le</th><th>Nom</th><th>E-mail</th><th>Naissance</th><th>Pays</th><th>Pièce</th><th>Statut</th><th>Actions</th></tr></thead>
+          <tbody id="uBody"></tbody>
+        </table></div>
+      </section>
+    </div>
+  </main>
+  <script src="/admin.js"></script>
+</body>
+</html>

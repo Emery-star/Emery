@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const { quote } = require('./fees');
 const { normalizeAirtelGabon } = require('./phone');
 const { normalizeEmail, normalizeIban, maskIban, maskEmail } = require('./validate');
+const { buildMessage } = require('./notifier');
 
 // Cycle de vie :
 //   awaiting_payment -> paid -> sending -> completed
@@ -12,18 +13,19 @@ const { normalizeEmail, normalizeIban, maskIban, maskEmail } = require('./valida
 const REVIEW_AFTER_MS = 6 * 60 * 60 * 1000;
 const PAYMENT_REVIEW_AFTER_MS = 24 * 60 * 60 * 1000;
 const COUNTED_STATUSES = "('paid','sending','completed','needs_review')";
+const FINAL_NOTIFIED = ['completed', 'refunded', 'cancelled'];
 
 class ValidationError extends Error {}
 
-function createTransferService({ db, config, rails, logger = console }) {
+function createTransferService({ db, config, rails, limits, screening, notifier, users, logger = console }) {
   const now = () => new Date().toISOString();
 
   const stmt = {
     insert: db.prepare(`INSERT INTO transfers
-      (id, access_token, status, direction, pay_method, payout_method, send_currency, send_amount, fee, discount,
-       total, receive_currency, receive_amount, sender_name, sender_contact, recipient_name, recipient_account,
-       created_at, updated_at)
-      VALUES (?, ?, 'awaiting_payment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+      (id, access_token, user_id, status, direction, pay_method, payout_method, send_currency, send_amount, fee,
+       discount, total, receive_currency, receive_amount, amount_eur, sender_name, sender_contact, recipient_name,
+       recipient_account, created_at, updated_at)
+      VALUES (?, ?, ?, 'awaiting_payment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
     get: db.prepare('SELECT * FROM transfers WHERE id = ?'),
     byCheckout: db.prepare('SELECT * FROM transfers WHERE checkout_id = ?'),
     setCheckout: db.prepare('UPDATE transfers SET checkout_id = ?, updated_at = ? WHERE id = ?'),
@@ -32,8 +34,10 @@ function createTransferService({ db, config, rails, logger = console }) {
       payment_ref = COALESCE(?, payment_ref), payout_ref = COALESCE(?, payout_ref),
       failure_reason = COALESCE(?, failure_reason), updated_at = ? WHERE id = ?`),
     byStatus: db.prepare('SELECT * FROM transfers WHERE status = ? ORDER BY created_at'),
-    previous: db.prepare(`SELECT COUNT(*) AS n FROM transfers WHERE sender_contact = ? AND status IN ${COUNTED_STATUSES}`),
+    previous: db.prepare(`SELECT COUNT(*) AS n FROM transfers WHERE user_id = ? AND status IN ${COUNTED_STATUSES}`),
     recent: db.prepare('SELECT * FROM transfers ORDER BY created_at DESC LIMIT ?'),
+    recentByStatus: db.prepare('SELECT * FROM transfers WHERE status = ? ORDER BY created_at DESC LIMIT ?'),
+    byUser: db.prepare('SELECT * FROM transfers WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'),
     event: db.prepare('INSERT INTO events (transfer_id, type, detail, created_at) VALUES (?, ?, ?, ?)'),
   };
 
@@ -44,13 +48,26 @@ function createTransferService({ db, config, rails, logger = console }) {
   /** Passage d'état atomique : renvoie false si un autre traitement est déjà passé par là. */
   function transition(id, from, to, detail) {
     const ok = stmt.transition.run(to, now(), id, from).changes === 1;
-    if (ok) log(id, to, detail);
+    if (ok) {
+      log(id, to, detail);
+      if (FINAL_NOTIFIED.includes(to)) notify(id);
+    }
     return ok;
   }
 
-  const isFirstTransfer = (senderContact) => stmt.previous.get(senderContact).n === 0;
+  /** Reçu par e-mail à l'expéditeur. Un échec d'envoi n'interrompt jamais le transfert. */
+  function notify(id) {
+    if (!notifier || !users) return;
+    const tr = stmt.get.get(id);
+    const user = users.find(tr.user_id);
+    if (!user) return;
+    notifier.send(user.email, buildMessage(tr, user, config.publicUrl))
+      .catch((err) => logger.error(`[transfert ${id}] e-mail non envoyé : ${err.message}`));
+  }
 
-  function validate(input) {
+  const isFirstTransfer = (userId) => stmt.previous.get(userId).n === 0;
+
+  function validate(user, input) {
     const direction = input.direction || 'fr_to_ga';
     const payMethod = input.payMethod || (direction === 'fr_to_ga' ? 'card' : 'airtel');
     const payoutMethod = input.payoutMethod || (direction === 'fr_to_ga' ? 'airtel' : 'sepa');
@@ -58,19 +75,19 @@ function createTransferService({ db, config, rails, logger = console }) {
       throw new ValidationError('Ce moyen de paiement ou de réception n’est pas disponible.');
     }
 
-    const senderName = String(input.senderName || '').trim();
-    const recipientName = String(input.recipientName || '').trim();
-    if (senderName.length < 2 || senderName.length > 100) throw new ValidationError('Nom de l’expéditeur invalide');
-    if (recipientName.length < 2 || recipientName.length > 100) throw new ValidationError('Nom du bénéficiaire invalide');
+    const senderName = user.full_name;
+    const recipientName = String(input.recipientName || '').trim().replace(/\s+/g, ' ');
+    if (recipientName.length < 3 || recipientName.length > 100 || !recipientName.includes(' ')) {
+      throw new ValidationError('Indiquez le prénom et le nom du bénéficiaire.');
+    }
 
     let senderContact, recipientAccount;
     if (direction === 'fr_to_ga') {
-      senderContact = normalizeEmail(input.senderEmail);
-      if (!senderContact) throw new ValidationError('Adresse e-mail invalide');
+      senderContact = user.email;
       recipientAccount = normalizeAirtelGabon(String(input.recipientPhone || ''));
       if (!recipientAccount) throw new ValidationError('Numéro Airtel Gabon du bénéficiaire invalide (ex. 077 12 34 56)');
     } else {
-      senderContact = normalizeAirtelGabon(String(input.senderPhone || ''));
+      senderContact = normalizeAirtelGabon(String(input.senderPhone || user.phone || ''));
       if (!senderContact) throw new ValidationError('Votre numéro Airtel Money est invalide (ex. 077 12 34 56)');
       if (payoutMethod === 'sepa') {
         recipientAccount = normalizeIban(input.recipientIban);
@@ -86,19 +103,32 @@ function createTransferService({ db, config, rails, logger = console }) {
       amount: input.amount,
       payMethod,
       payoutMethod,
-      firstTransfer: isFirstTransfer(senderContact),
+      firstTransfer: isFirstTransfer(user.id),
     }, config);
-    return { q, direction, payMethod, payoutMethod, senderName, senderContact, recipientName, recipientAccount };
+    const amountEur = direction === 'fr_to_ga' ? q.sendAmount : q.receiveAmount;
+    return { q, amountEur, direction, payMethod, payoutMethod, senderName, senderContact, recipientName, recipientAccount };
   }
 
-  async function create(input) {
-    const v = validate(input);
+  async function create(user, input) {
+    if (!user) throw new ValidationError('Connectez-vous pour envoyer de l’argent.');
+    if (user.kyc_status !== 'approved') throw new ValidationError('Vérifiez votre identité avant votre premier envoi.');
+    const v = validate(user, input);
+
+    const limitError = limits && limits.check(user.id, v.amountEur);
+    if (limitError) throw new ValidationError(limitError);
+    const hit = screening && screening.check({ name: v.recipientName });
+    if (hit) {
+      // Message neutre : on n'informe pas l'expéditeur du motif. Le dossier part en revue conformité.
+      logger.warn(`[conformité] bénéficiaire « ${v.recipientName} » sur ${hit.listName} (client ${user.id})`);
+      throw new ValidationError('Cet envoi ne peut pas être traité. Contactez le support.');
+    }
+
     const id = crypto.randomBytes(10).toString('hex');
     const accessToken = crypto.randomBytes(16).toString('hex');
     const t = now();
-    stmt.insert.run(id, accessToken, v.direction, v.payMethod, v.payoutMethod, v.q.sendCurrency, v.q.sendAmount,
-      v.q.fee, v.q.discount, v.q.total, v.q.receiveCurrency, v.q.receiveAmount, v.senderName, v.senderContact,
-      v.recipientName, v.recipientAccount, t, t);
+    stmt.insert.run(id, accessToken, user.id, v.direction, v.payMethod, v.payoutMethod, v.q.sendCurrency,
+      v.q.sendAmount, v.q.fee, v.q.discount, v.q.total, v.q.receiveCurrency, v.q.receiveAmount, v.amountEur,
+      v.senderName, v.senderContact, v.recipientName, v.recipientAccount, t, t);
     log(id, 'created', { total: v.q.total, currency: v.q.sendCurrency });
 
     try {
@@ -215,18 +245,35 @@ function createTransferService({ db, config, rails, logger = console }) {
     }
   }
 
-  function getPublic(id, accessToken) {
+  /** Décision manuelle de l'équipe sur un transfert « en vérification ». */
+  async function resolve(id, outcome) {
     const tr = stmt.get.get(id);
-    if (!tr || !accessToken) return null;
-    const a = Buffer.from(tr.access_token);
-    const b = Buffer.from(String(accessToken));
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+    if (!tr || tr.status !== 'needs_review') throw new ValidationError('Seul un transfert en vérification peut être tranché.');
+    const paid = Boolean(tr.payment_ref);
+    if (outcome === 'cancel') {
+      if (paid) throw new ValidationError('Le paiement a été reçu : choisissez « versé » ou « rembourser ».');
+      transition(id, 'needs_review', 'cancelled', { manual: true });
+    } else if (outcome === 'completed') {
+      if (!paid) throw new ValidationError('Aucun paiement reçu pour ce transfert.');
+      transition(id, 'needs_review', 'completed', { manual: true });
+    } else if (outcome === 'refund') {
+      if (!paid) throw new ValidationError('Aucun paiement reçu pour ce transfert.');
+      transition(id, 'needs_review', 'sending', { manual: true });
+      await fail(id, 'Versement non abouti (vérifié par notre équipe)');
+    } else {
+      throw new ValidationError('Décision inconnue');
+    }
+    return stmt.get.get(id);
+  }
+
+  function toPublic(tr) {
     let account = tr.recipient_account;
     if (tr.payout_method === 'airtel') account = `${account.slice(0, 3)} •• •• ${account.slice(7)}`;
     if (tr.payout_method === 'sepa') account = maskIban(account);
     if (tr.payout_method === 'paypal') account = maskEmail(account);
     return {
       id: tr.id,
+      accessToken: tr.access_token,
       status: tr.status,
       direction: tr.direction,
       payMethod: tr.pay_method,
@@ -247,19 +294,31 @@ function createTransferService({ db, config, rails, logger = console }) {
     };
   }
 
+  function getPublic(id, accessToken) {
+    const tr = stmt.get.get(id);
+    if (!tr || !accessToken) return null;
+    const a = Buffer.from(tr.access_token);
+    const b = Buffer.from(String(accessToken));
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+    const { accessToken: _, ...pub } = toPublic(tr);
+    return pub;
+  }
+
   return {
     create,
+    resolve,
+    getPublic,
+    historyFor: (userId, limit = 50) => stmt.byUser.all(userId, limit).map(toPublic),
     onPaymentConfirmed,
     reconcile,
     reconcileOne: (id) => {
       const tr = stmt.get.get(id);
       return tr ? reconcileOne(tr) : undefined;
     },
-    getPublic,
     isFirstTransfer,
     findByCheckout: (checkoutId) => stmt.byCheckout.get(checkoutId),
     find: (id) => stmt.get.get(id),
-    recent: (limit = 100) => stmt.recent.all(limit),
+    recent: ({ status, limit = 200 } = {}) => (status ? stmt.recentByStatus.all(status, limit) : stmt.recent.all(limit)),
   };
 }
 

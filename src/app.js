@@ -6,6 +6,7 @@ const express = require('express');
 const { quote, QuoteError } = require('./fees');
 const { normalizeAirtelGabon, formatGabon } = require('./phone');
 const { ValidationError } = require('./transfers');
+const { UserError } = require('./users');
 
 /** Limiteur de débit en mémoire, par IP. Suffisant pour une seule instance. */
 function rateLimit({ windowMs, max }) {
@@ -25,7 +26,27 @@ function maskName(name) {
   return [first, ...rest.map((w) => w[0] + '*'.repeat(Math.max(0, w.length - 1)))].join(' ');
 }
 
-function createApp({ config, transfers, rails, airtel, payments, logger = console }) {
+function parseCookies(header) {
+  const out = {};
+  for (const part of String(header || '').split(';')) {
+    const i = part.indexOf('=');
+    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return out;
+}
+
+/** Envoie l'erreur métier au client, et masque les erreurs techniques. */
+function sendError(res, err, logger, context) {
+  if (err instanceof ValidationError || err instanceof QuoteError || err instanceof UserError) {
+    return res.status(400).json({ error: err.message });
+  }
+  logger.error(`${context} : ${err.message}`);
+  res.status(500).json({ error: 'Une erreur est survenue. Réessayez dans un instant.' });
+}
+
+function createApp({ config, transfers, users, rails, airtel, payments, kyc, logger = console }) {
+  const secureCookie = config.publicUrl.startsWith('https://');
+  const COOKIE = 'sid';
   const app = express();
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
@@ -59,7 +80,88 @@ function createApp({ config, transfers, rails, airtel, payments, logger = consol
     }
   });
 
-  app.use(express.json({ limit: '10kb' }));
+  // Webhook du prestataire KYC (corps brut pour vérifier sa signature).
+  app.post('/webhooks/kyc', express.raw({ type: '*/*', limit: '100kb' }), (req, res) => {
+    if (!kyc.parseWebhook) return res.status(404).end();
+    let decision;
+    try {
+      decision = kyc.parseWebhook(req.body, req.headers);
+    } catch (err) {
+      logger.warn(`Webhook KYC rejeté : ${err.message}`);
+      return res.status(400).send('Signature invalide');
+    }
+    const user = decision && users.findByKycRef(decision.ref);
+    if (user && user.kyc_status === 'pending') users.setKycDecision(user.id, decision.status, decision.reason);
+    res.json({ received: true });
+  });
+
+  app.use(express.json({ limit: '20kb' }));
+
+  // Protection CSRF : toute requête qui modifie quelque chose doit être en JSON (un formulaire d'un autre
+  // site ne peut pas en envoyer sans autorisation CORS), et le cookie de session est SameSite=Lax.
+  app.use('/api', (req, res, next) => {
+    if (req.method !== 'GET' && !req.is('application/json')) {
+      return res.status(415).json({ error: 'Requête JSON attendue' });
+    }
+    next();
+  });
+
+  // Identifie le client connecté.
+  app.use((req, res, next) => {
+    req.sessionToken = parseCookies(req.headers.cookie)[COOKIE];
+    req.user = users.userFromSession(req.sessionToken);
+    next();
+  });
+  const requireUser = (req, res, next) => (req.user ? next() : res.status(401).json({ error: 'Connectez-vous pour continuer.' }));
+
+  function openSession(res, userId) {
+    const { token, expires } = users.createSession(userId);
+    res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: secureCookie, expires: new Date(expires), path: '/' });
+  }
+
+  const authLimit = rateLimit({ windowMs: 15 * 60_000, max: 20 });
+
+  app.post('/api/auth/register', authLimit, async (req, res) => {
+    try {
+      const user = await users.register(req.body || {});
+      openSession(res, user.id);
+      res.status(201).json(users.publicProfile(user));
+    } catch (err) {
+      sendError(res, err, logger, 'Inscription');
+    }
+  });
+
+  app.post('/api/auth/login', authLimit, async (req, res) => {
+    try {
+      const user = await users.login(req.body || {});
+      openSession(res, user.id);
+      res.json(users.publicProfile(user));
+    } catch (err) {
+      sendError(res, err, logger, 'Connexion');
+    }
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    users.logout(req.sessionToken);
+    res.clearCookie(COOKIE, { path: '/' });
+    res.json({ ok: true });
+  });
+
+  app.get('/api/me', requireUser, (req, res) => {
+    res.json({ ...users.publicProfile(req.user), firstTransfer: transfers.isFirstTransfer(req.user.id) });
+  });
+
+  app.post('/api/me/kyc', requireUser, rateLimit({ windowMs: 60 * 60_000, max: 10 }), async (req, res) => {
+    try {
+      res.json(await users.submitKyc(req.user.id, req.body || {}));
+    } catch (err) {
+      sendError(res, err, logger, 'KYC');
+    }
+  });
+
+  app.get('/api/me/transfers', requireUser, (req, res) => {
+    res.json(transfers.historyFor(req.user.id));
+  });
 
   app.get('/api/config', (req, res) => {
     res.json({
@@ -68,6 +170,7 @@ function createApp({ config, transfers, rails, airtel, payments, logger = consol
       limits: config.limits,
       fees: config.fees,
       methods: rails.methods(),
+      support: config.support,
     });
   });
 
@@ -102,17 +205,13 @@ function createApp({ config, transfers, rails, airtel, payments, logger = consol
     }
   });
 
-  app.post('/api/transfers', rateLimit({ windowMs: 60_000, max: 5 }), async (req, res) => {
+  app.post('/api/transfers', requireUser, rateLimit({ windowMs: 60_000, max: 5 }), async (req, res) => {
     try {
-      const r = await transfers.create(req.body || {});
+      const r = await transfers.create(req.user, req.body || {});
       const trackUrl = `/suivi.html?id=${r.id}&t=${r.accessToken}`;
       res.status(201).json({ ...r, nextUrl: r.checkoutUrl || trackUrl, trackUrl });
     } catch (err) {
-      if (err instanceof ValidationError || err instanceof QuoteError) {
-        return res.status(400).json({ error: err.message });
-      }
-      logger.error(`Création transfert : ${err.message}`);
-      res.status(500).json({ error: 'Impossible de créer le transfert. Réessayez dans un instant.' });
+      sendError(res, err, logger, 'Création transfert');
     }
   });
 
@@ -150,13 +249,54 @@ function createApp({ config, transfers, rails, airtel, payments, logger = consol
     });
   }
 
-  app.get('/api/admin/transfers', (req, res) => {
+  // Espace équipe : jeton ADMIN_TOKEN dans l'en-tête Authorization.
+  const requireAdmin = (req, res, next) => {
     const auth = req.get('authorization') || '';
     const expected = `Bearer ${config.adminToken}`;
-    const ok = config.adminToken && auth.length === expected.length &&
+    const ok = config.adminToken.length >= 16 && auth.length === expected.length &&
       crypto.timingSafeEqual(Buffer.from(auth), Buffer.from(expected));
-    if (!ok) return res.status(401).json({ error: 'Non autorisé' });
-    res.json(transfers.recent(200));
+    if (!ok) return res.status(401).json({ error: 'Jeton administrateur invalide' });
+    next();
+  };
+  const adminLimit = rateLimit({ windowMs: 60_000, max: 120 });
+
+  app.get('/api/admin/transfers', adminLimit, requireAdmin, (req, res) => {
+    res.json(transfers.recent({ status: req.query.status || undefined }));
+  });
+
+  app.get('/api/admin/users', adminLimit, requireAdmin, (req, res) => {
+    res.json(users.list({ kyc: req.query.kyc || undefined }).map((u) => ({
+      ...users.publicProfile(u),
+      idNumber: u.id_number,
+      kycReason: u.kyc_reason,
+      createdAt: u.created_at,
+    })));
+  });
+
+  app.post('/api/admin/users/:id/kyc', adminLimit, requireAdmin, (req, res) => {
+    try {
+      if (!users.find(req.params.id)) return res.status(404).json({ error: 'Client introuvable' });
+      res.json(users.publicProfile(users.setKycDecision(req.params.id, req.body.decision, req.body.reason)));
+    } catch (err) {
+      sendError(res, err, logger, 'Décision KYC');
+    }
+  });
+
+  app.post('/api/admin/transfers/:id/recheck', adminLimit, requireAdmin, async (req, res) => {
+    try {
+      await transfers.reconcileOne(req.params.id);
+      res.json(transfers.find(req.params.id) || null);
+    } catch (err) {
+      sendError(res, err, logger, 'Revérification');
+    }
+  });
+
+  app.post('/api/admin/transfers/:id/resolve', adminLimit, requireAdmin, async (req, res) => {
+    try {
+      res.json(await transfers.resolve(req.params.id, req.body.outcome));
+    } catch (err) {
+      sendError(res, err, logger, 'Décision transfert');
+    }
   });
 
   app.use(express.static(path.join(__dirname, '..', 'public')));
