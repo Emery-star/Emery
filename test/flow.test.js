@@ -2,134 +2,212 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const config = require('../src/config');
+const baseConfig = require('../src/config');
 const { openDb } = require('../src/db');
 const { MockAirtelClient, AirtelClient } = require('../src/providers/airtel');
 const { MockPayments } = require('../src/providers/payments');
+const { MockPaypalClient, PaypalClient } = require('../src/providers/paypal');
+const { MockSepaClient } = require('../src/providers/sepa');
+const { createRails } = require('../src/rails');
 const { createTransferService } = require('../src/transfers');
 const { createApp } = require('../src/app');
 
 const quiet = { error() {}, warn() {}, log() {} };
+const config = { ...baseConfig, mode: 'demo' };
+
+function setup() {
+  const db = openDb(':memory:');
+  const p = {
+    airtel: new MockAirtelClient(),
+    payments: new MockPayments('http://test'),
+    paypal: new MockPaypalClient(),
+    sepa: new MockSepaClient(),
+  };
+  const rails = createRails({ config, ...p });
+  const transfers = createTransferService({ db, config, rails, logger: quiet });
+  return { ...p, rails, transfers };
+}
 
 async function startApp() {
-  const db = openDb(':memory:');
-  const airtel = new MockAirtelClient();
-  const payments = new MockPayments('http://test');
-  const transfers = createTransferService({ db, config, airtel, payments, logger: quiet });
-  const app = createApp({ config, transfers, airtel, payments, logger: quiet });
-  const server = await new Promise((r) => { const s = app.listen(0, () => r(s)); });
+  const s = setup();
+  const app = createApp({ config, transfers: s.transfers, rails: s.rails, airtel: s.airtel, payments: s.payments, logger: quiet });
+  const server = await new Promise((r) => { const srv = app.listen(0, () => r(srv)); });
   const base = `http://127.0.0.1:${server.address().port}`;
   const call = async (path, opts = {}) => {
     const res = await fetch(base + path, { ...opts, headers: { 'Content-Type': 'application/json' } });
     return { status: res.status, body: await res.json() };
   };
-  return { server, call, payments, airtel, transfers };
+  const post = (path, body) => call(path, { method: 'POST', body: JSON.stringify(body || {}) });
+  return { ...s, server, call, post };
 }
 
-const sender = { senderName: 'Marie Ndong', senderEmail: 'marie@example.com', recipientName: 'Paul Obame' };
+const frSender = { senderName: 'Marie Ndong', senderEmail: 'marie@example.com', recipientName: 'Paul Obame' };
+const gaSender = { senderName: 'Paul Obame', senderPhone: '077 12 34 56', recipientName: 'Marie Ndong' };
 
-test('parcours complet : création, paiement, dépôt Airtel', async (t) => {
-  const { server, call, airtel } = await startApp();
+test('France -> Gabon : paiement carte puis dépôt Airtel, premier envoi offert', async (t) => {
+  const { server, call, post, airtel } = await startApp();
   t.after(() => server.close());
 
-  const created = await call('/api/transfers', {
-    method: 'POST',
-    body: JSON.stringify({ ...sender, amountEur: 50, recipientPhone: '077 12 34 56' }),
-  });
+  const created = await post('/api/transfers', { ...frSender, amount: 50, recipientPhone: '077 12 34 56' });
   assert.strictEqual(created.status, 201);
+  assert.strictEqual(created.body.quote.discount, 0.99);
+  assert.strictEqual(created.body.quote.total, 50);
   const session = new URL(created.body.checkoutUrl).searchParams.get('session');
 
-  const paid = await call(`/api/mock-checkout/${session}/complete`, { method: 'POST' });
-  assert.strictEqual(paid.status, 200);
-
-  const status = await call(`/api/transfers/${created.body.id}?t=${created.body.accessToken}`);
-  assert.strictEqual(status.body.status, 'completed');
-  assert.strictEqual(status.body.receivedXaf, 32797);
-  assert.strictEqual(airtel.sent.get(created.body.id).amountXaf, 32797);
+  assert.strictEqual((await post(`/api/mock-checkout/${session}/complete`)).status, 200);
+  const st = await call(`/api/transfers/${created.body.id}?t=${created.body.accessToken}`);
+  assert.strictEqual(st.body.status, 'completed');
+  assert.strictEqual(st.body.receiveAmount, 32797);
+  assert.strictEqual(airtel.sent.get(`D${created.body.id}`).amountXaf, 32797);
 
   // Un second webhook de paiement ne déclenche pas un second envoi.
-  await call(`/api/mock-checkout/${session}/complete`, { method: 'POST' });
+  await post(`/api/mock-checkout/${session}/complete`);
   assert.strictEqual(airtel.sent.size, 1);
+
+  // Le deuxième envoi du même expéditeur paie les frais normaux.
+  const second = await post('/api/transfers', { ...frSender, amount: 50, recipientPhone: '077 12 34 56' });
+  assert.strictEqual(second.body.quote.discount, 0);
 });
 
-test('un échec Airtel déclenche le remboursement', async (t) => {
-  const { server, call, payments } = await startApp();
+test('France -> Gabon : échec Airtel => remboursement', async (t) => {
+  const { server, call, post, payments } = await startApp();
   t.after(() => server.close());
-
-  const created = await call('/api/transfers', {
-    method: 'POST',
-    body: JSON.stringify({ ...sender, amountEur: 20, recipientPhone: '077119999' }),
-  });
+  const created = await post('/api/transfers', { ...frSender, amount: 20, recipientPhone: '077119999', payMethod: 'paypal' });
   const session = new URL(created.body.checkoutUrl).searchParams.get('session');
-  await call(`/api/mock-checkout/${session}/complete`, { method: 'POST' });
-
-  const status = await call(`/api/transfers/${created.body.id}?t=${created.body.accessToken}`);
-  assert.strictEqual(status.body.status, 'refunded');
+  await post(`/api/mock-checkout/${session}/complete`);
+  const st = await call(`/api/transfers/${created.body.id}?t=${created.body.accessToken}`);
+  assert.strictEqual(st.body.status, 'refunded');
   assert.strictEqual(payments.refunds.length, 1);
 });
 
+test('Gabon -> France : paiement Airtel (code PIN) puis virement SEPA', async (t) => {
+  const { server, call, post, sepa } = await startApp();
+  t.after(() => server.close());
+  const created = await post('/api/transfers', {
+    ...gaSender, direction: 'ga_to_fr', payoutMethod: 'sepa', amount: 65596, recipientIban: 'FR76 3000 6000 0112 3456 7890 189',
+  });
+  assert.strictEqual(created.status, 201);
+  assert.strictEqual(created.body.checkoutUrl, null);
+  assert.match(created.body.nextUrl, /^\/suivi\.html/);
+  const path = `/api/transfers/${created.body.id}?t=${created.body.accessToken}`;
+  assert.strictEqual((await call(path)).body.status, 'awaiting_payment');
+
+  const after = await post(`/api/demo/airtel-pin/${created.body.id}?t=${created.body.accessToken}`);
+  assert.strictEqual(after.body.status, 'completed');
+  assert.strictEqual(after.body.receiveAmount, 100);
+  assert.strictEqual(after.body.recipientAccount, 'FR76 •••• •••• 0189');
+  assert.strictEqual([...sepa.sent.values()][0].amountEur, 100);
+});
+
+test('Gabon -> France : PayPal refusé => remboursement sur Airtel Money', async (t) => {
+  const { server, post, airtel } = await startApp();
+  t.after(() => server.close());
+  const created = await post('/api/transfers', {
+    ...gaSender, direction: 'ga_to_fr', payoutMethod: 'paypal', amount: 20000, recipientEmail: 'echec@example.com',
+  });
+  const after = await post(`/api/demo/airtel-pin/${created.body.id}?t=${created.body.accessToken}`);
+  assert.strictEqual(after.body.status, 'refunded');
+  assert.strictEqual(airtel.refunds.length, 1);
+});
+
+test('Gabon -> France : solde insuffisant => paiement annulé, rien n’est versé', async (t) => {
+  const { server, post, sepa } = await startApp();
+  t.after(() => server.close());
+  const created = await post('/api/transfers', {
+    ...gaSender, senderPhone: '077119999', direction: 'ga_to_fr', payoutMethod: 'sepa', amount: 20000,
+    recipientIban: 'FR7630006000011234567890189',
+  });
+  const after = await post(`/api/demo/airtel-pin/${created.body.id}?t=${created.body.accessToken}`);
+  assert.strictEqual(after.body.status, 'cancelled');
+  assert.strictEqual(sepa.sent.size, 0);
+});
+
+test('refuse les saisies invalides et Wero (pas encore branché)', async (t) => {
+  const { server, post } = await startApp();
+  t.after(() => server.close());
+  const cases = [
+    { ...frSender, amount: 20, recipientPhone: '066123456' },
+    { ...frSender, amount: 99999, recipientPhone: '077123456' },
+    { ...frSender, amount: 20, recipientPhone: '077123456', payMethod: 'wero' },
+    { ...gaSender, direction: 'ga_to_fr', payoutMethod: 'sepa', amount: 20000, recipientIban: 'FR7630006000011234567890188' },
+    { ...gaSender, direction: 'ga_to_fr', payoutMethod: 'wero', amount: 20000 },
+  ];
+  for (const c of cases) assert.strictEqual((await post('/api/transfers', c)).status, 400, JSON.stringify(c));
+});
+
 test('le suivi exige le jeton d’accès', async (t) => {
-  const { server, call } = await startApp();
+  const { server, call, post } = await startApp();
   t.after(() => server.close());
-  const created = await call('/api/transfers', {
-    method: 'POST',
-    body: JSON.stringify({ ...sender, amountEur: 20, recipientPhone: '077123456' }),
-  });
-  const res = await call(`/api/transfers/${created.body.id}?t=mauvais`);
-  assert.strictEqual(res.status, 404);
+  const created = await post('/api/transfers', { ...frSender, amount: 20, recipientPhone: '077123456' });
+  assert.strictEqual((await call(`/api/transfers/${created.body.id}?t=mauvais`)).status, 404);
 });
 
-test('refuse les numéros non Airtel et les montants invalides', async (t) => {
-  const { server, call } = await startApp();
-  t.after(() => server.close());
-  const moov = await call('/api/transfers', {
-    method: 'POST',
-    body: JSON.stringify({ ...sender, amountEur: 20, recipientPhone: '066123456' }),
-  });
-  assert.strictEqual(moov.status, 400);
-  const tooMuch = await call('/api/transfers', {
-    method: 'POST',
-    body: JSON.stringify({ ...sender, amountEur: 99999, recipientPhone: '077123456' }),
-  });
-  assert.strictEqual(tooMuch.status, 400);
+test('erreur réseau au versement : pas de remboursement aveugle, réconciliation ensuite', async () => {
+  const s = setup();
+  const realDisburse = s.airtel.disburse.bind(s.airtel);
+  s.airtel.disburse = async () => { throw new Error('ETIMEDOUT'); };
+
+  const c = await s.transfers.create({ ...frSender, amount: 30, recipientPhone: '077123456' });
+  const tr = s.transfers.findByCheckout(new URL(c.checkoutUrl).searchParams.get('session'));
+  await s.transfers.onPaymentConfirmed({ transferId: tr.id, checkoutId: tr.checkout_id, paymentRef: 'pi_1' });
+  assert.strictEqual(s.transfers.getPublic(c.id, c.accessToken).status, 'sending');
+  assert.strictEqual(s.payments.refunds.length, 0);
+
+  // Airtel avait finalement bien traité le dépôt.
+  await realDisburse({ id: `D${tr.id}`, msisdn: tr.recipient_account, amountXaf: tr.receive_amount });
+  await s.transfers.reconcile();
+  assert.strictEqual(s.transfers.getPublic(c.id, c.accessToken).status, 'completed');
 });
 
-test('erreur réseau Airtel : pas de remboursement aveugle, réconciliation ensuite', async () => {
-  const db = openDb(':memory:');
-  const airtel = new MockAirtelClient();
-  const realDisburse = airtel.disburse.bind(airtel);
-  airtel.disburse = async () => { throw new Error('ETIMEDOUT'); };
-  const payments = new MockPayments('http://test');
-  const svc = createTransferService({ db, config, airtel, payments, logger: quiet });
-
-  const c = await svc.create({ ...sender, amountEur: 30, recipientPhone: '077123456' });
-  const tr = svc.findByCheckout(new URL(c.checkoutUrl).searchParams.get('session'));
-  await svc.onPaymentConfirmed({ transferId: tr.id, checkoutId: tr.checkout_id, paymentRef: 'pi_1' });
-  assert.strictEqual(svc.getPublic(c.id, c.accessToken).status, 'sending');
-  assert.strictEqual(payments.refunds.length, 0);
-
-  // Airtel a finalement bien traité le dépôt.
-  await realDisburse({ id: tr.id, msisdn: tr.recipient_msisdn, amountXaf: tr.received_xaf });
-  await svc.reconcile();
-  assert.strictEqual(svc.getPublic(c.id, c.accessToken).status, 'completed');
+test('en mode live, les moyens sans prestataire configuré sont indisponibles', () => {
+  const live = { ...baseConfig, mode: 'live', stripe: { enabled: false }, paypal: { enabled: false }, sepa: { enabled: false }, airtel: { enabled: true } };
+  const m = createRails({ config: live, sepa: null }).methods();
+  assert.deepStrictEqual(m.fr_to_ga.pay.filter((x) => x.available).map((x) => x.id), []);
+  assert.deepStrictEqual(m.ga_to_fr.pay.filter((x) => x.available).map((x) => x.id), ['airtel']);
+  assert.deepStrictEqual(m.ga_to_fr.payout.filter((x) => x.available).map((x) => x.id), []);
 });
 
-test('client Airtel : jeton OAuth puis décaissement avec en-têtes Gabon', async () => {
-  const calls = [];
-  const fakeFetch = async (url, opts) => {
+function fakeFetch(routes, calls) {
+  return async (url, opts) => {
     calls.push({ url, opts });
-    const body = url.endsWith('/token')
-      ? { access_token: 'tok', expires_in: 180 }
-      : { data: { transaction: { id: 'x', status: 'TS', airtel_money_id: 'AM123' } }, status: { success: true } };
+    const key = Object.keys(routes).find((k) => url.includes(k));
+    const body = routes[key];
     return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
   };
-  const client = new AirtelClient({ ...config.airtel, clientId: 'id', clientSecret: 's', pin: '1234' }, fakeFetch);
-  const r = await client.disburse({ id: 'x', msisdn: '077123456', amountXaf: 1000, reference: 'r' });
+}
+
+test('client Airtel : jeton OAuth, décaissement et encaissement avec en-têtes Gabon', async () => {
+  const calls = [];
+  const client = new AirtelClient({ ...baseConfig.airtel, clientId: 'id', clientSecret: 's', pin: '1234' }, fakeFetch({
+    '/token': { access_token: 'tok', expires_in: 180 },
+    '/disbursements/': { data: { transaction: { status: 'TS', airtel_money_id: 'AM123' } }, status: { success: true } },
+    '/merchant/v1/payments/': { data: { transaction: { id: 'C1', status: 'Success.' } }, status: { success: true } },
+  }, calls));
+  const r = await client.disburse({ id: 'D1', msisdn: '077123456', amountXaf: 1000, reference: 'r' });
   assert.deepStrictEqual(r, { status: 'success', providerRef: 'AM123', message: undefined });
   const d = calls[1];
-  assert.match(d.url, /\/standard\/v2\/disbursements\/$/);
   assert.strictEqual(d.opts.headers['X-Country'], 'GA');
   assert.strictEqual(d.opts.headers['X-Currency'], 'XAF');
   assert.strictEqual(d.opts.headers.Authorization, 'Bearer tok');
   assert.strictEqual(JSON.parse(d.opts.body).transaction.type, 'B2C');
+
+  assert.deepStrictEqual(await client.collect({ id: 'C1', msisdn: '077123456', amountXaf: 5000, reference: 'r' }), { status: 'pending' });
+  const body = JSON.parse(calls[2].opts.body);
+  assert.deepStrictEqual(body.subscriber, { country: 'GA', currency: 'XAF', msisdn: '077123456' });
+  assert.strictEqual(body.transaction.amount, 5000);
+});
+
+test('client PayPal : versement en euros vers un e-mail', async () => {
+  const calls = [];
+  const client = new PaypalClient({ clientId: 'a', clientSecret: 'b', baseUrl: 'https://pp' }, fakeFetch({
+    '/oauth2/token': { access_token: 'pp', expires_in: 300 },
+    '/payouts/BATCH1': { items: [{ transaction_status: 'SUCCESS' }] },
+    '/payouts': { batch_header: { payout_batch_id: 'BATCH1' } },
+  }, calls));
+  const r = await client.payout({ id: 'Dabc', email: 'x@y.fr', amountEur: 12.5, note: 'n' });
+  assert.deepStrictEqual(r, { status: 'pending', providerRef: 'BATCH1' });
+  const item = JSON.parse(calls[1].opts.body).items[0];
+  assert.deepStrictEqual(item.amount, { value: '12.50', currency: 'EUR' });
+  assert.strictEqual(item.receiver, 'x@y.fr');
+  assert.strictEqual((await client.status('BATCH1')).status, 'success');
 });

@@ -100,12 +100,41 @@ class AirtelClient {
     const tx = (body && body.data && body.data.transaction) || {};
     return { status: mapStatus(tx.status), providerRef: tx.airtel_money_id || null, message: tx.message };
   }
+
+  /** Demande de paiement : le client reçoit une notification USSD et valide avec son code PIN Airtel. */
+  async collect({ id, msisdn, amountXaf, reference }) {
+    const c = this.cfg;
+    const body = await this.request('POST', '/merchant/v1/payments/', {
+      reference,
+      subscriber: { country: c.country, currency: c.currency, msisdn },
+      transaction: { amount: amountXaf, country: c.country, currency: c.currency, id },
+    });
+    if (!body || !body.status || !body.status.success) {
+      return { status: 'failed', message: body && body.status && body.status.message };
+    }
+    return { status: 'pending' };
+  }
+
+  async collectionStatus(id) {
+    const body = await this.request('GET', `/standard/v1/payments/${encodeURIComponent(id)}`);
+    const tx = (body && body.data && body.data.transaction) || {};
+    return { status: mapStatus(tx.status), providerRef: tx.airtel_money_id || null, message: tx.message };
+  }
+
+  async refundCollection(airtelMoneyId) {
+    const body = await this.request('POST', '/standard/v1/payments/refund', {
+      transaction: { airtel_money_id: airtelMoneyId },
+    });
+    if (!body || !body.status || !body.status.success) throw new Error('Remboursement Airtel refusé');
+  }
 }
 
 /** Simulateur utilisé quand aucune clé Airtel n'est configurée (développement / démo). */
 class MockAirtelClient {
   constructor() {
     this.sent = new Map();
+    this.collections = new Map();
+    this.refunds = [];
   }
   async lookupName(msisdn) {
     return msisdn.endsWith('0000') ? null : 'TITULAIRE TEST';
@@ -119,6 +148,23 @@ class MockAirtelClient {
   async status(id) {
     const tx = this.sent.get(id);
     return { status: tx ? tx.status : 'failed', providerRef: `MOCK-${id.slice(0, 8)}` };
+  }
+  async collect({ id, msisdn, amountXaf }) {
+    this.collections.set(id, { msisdn, amountXaf, status: 'pending' });
+    return { status: 'pending' };
+  }
+  /** Simule la saisie du code PIN par le client (9999 en fin de numéro = solde insuffisant). */
+  confirmCollection(id) {
+    const c = this.collections.get(id);
+    if (c && c.status === 'pending') c.status = c.msisdn.endsWith('9999') ? 'failed' : 'success';
+  }
+  async collectionStatus(id) {
+    const c = this.collections.get(id);
+    if (!c) return { status: 'failed' };
+    return { status: c.status, providerRef: `MOCKPAY-${id.slice(1, 9)}`, message: c.status === 'failed' ? 'Solde insuffisant (simulé)' : undefined };
+  }
+  async refundCollection(airtelMoneyId) {
+    this.refunds.push(airtelMoneyId);
   }
 }
 

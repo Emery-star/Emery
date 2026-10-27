@@ -18,6 +18,8 @@ const env = process.env;
 const num = (v, d) => (v === undefined || v === '' ? d : Number(v));
 
 const config = {
+  // "demo" : tous les prestataires sont simulés. "live" : vrais prestataires uniquement.
+  mode: env.MODE === 'live' ? 'live' : 'demo',
   port: num(env.PORT, 3000),
   publicUrl: (env.PUBLIC_URL || 'http://localhost:3000').replace(/\/$/, ''),
   dbPath: env.DB_PATH || path.join(__dirname, '..', 'data', 'transfers.db'),
@@ -27,10 +29,16 @@ const config = {
   // On applique ce taux officiel sans marge, contrairement aux opérateurs classiques.
   eurToXaf: 655.957,
 
+  // Grille : petit envoi à prix d'appel, puis fixe + pourcentage. Tout est calculé en euros.
   fees: {
-    fixedEur: num(env.FEE_FIXED_EUR, 0.99),
-    percent: num(env.FEE_PERCENT, 1.0),
-    minEur: num(env.FEE_MIN_EUR, 0.99),
+    smallLimitEur: num(env.FEE_SMALL_LIMIT_EUR, 50),
+    smallFeeEur: num(env.FEE_SMALL_EUR, 0.99),
+    fixedEur: num(env.FEE_FIXED_EUR, 1.49),
+    percent: num(env.FEE_PERCENT, 1.5),
+    // PayPal coûte plus cher qu'une carte ou un virement : supplément répercuté et affiché.
+    paypalSurchargePercent: num(env.FEE_PAYPAL_SURCHARGE_PERCENT, 1.0),
+    // Premier envoi : frais offerts, dans la limite de ce montant.
+    firstTransferFreeMaxEur: num(env.FIRST_TRANSFER_FREE_MAX_EUR, 5),
   },
 
   limits: {
@@ -59,10 +67,25 @@ const config = {
   stripe: {
     secretKey: env.STRIPE_SECRET_KEY || '',
     webhookSecret: env.STRIPE_WEBHOOK_SECRET || '',
+    // PayPal en paiement (France -> Gabon) passe par Stripe Checkout, à activer dans le tableau de bord Stripe.
+    paypalEnabled: env.STRIPE_PAYPAL_ENABLED === 'true',
+  },
+
+  paypal: {
+    clientId: env.PAYPAL_CLIENT_ID || '',
+    clientSecret: env.PAYPAL_CLIENT_SECRET || '',
+    baseUrl: env.PAYPAL_BASE_URL || 'https://api-m.sandbox.paypal.com',
+  },
+
+  // Virements SEPA sortants : à brancher sur un établissement partenaire (voir src/providers/sepa.js).
+  sepa: {
+    provider: env.SEPA_PROVIDER || '',
   },
 };
 
 config.airtel.enabled = Boolean(config.airtel.clientId && config.airtel.clientSecret);
 config.stripe.enabled = Boolean(config.stripe.secretKey);
+config.paypal.enabled = Boolean(config.paypal.clientId && config.paypal.clientSecret);
+config.sepa.enabled = Boolean(config.sepa.provider);
 
 module.exports = config;

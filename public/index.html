@@ -3,66 +3,98 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Envoi Gabon – Airtel Money</title>
+  <title>EnvoiGabon</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body data-page="send">
   <header class="top">
     <div class="wrap">
       <span class="logo">Envoi<b>Gabon</b></span>
-      <span class="tag">Directement sur Airtel Money</span>
+      <span class="tag">France ⇄ Gabon via Airtel Money</span>
     </div>
   </header>
 
   <main class="wrap">
     <div id="sandbox" class="banner hidden">Mode démonstration : aucun argent réel n’est débité ni envoyé.</div>
-    <div id="cancelled" class="banner warn hidden">Paiement annulé. Votre carte n’a pas été débitée.</div>
+    <div id="cancelled" class="banner warn hidden">Paiement annulé. Vous n’avez pas été débité.</div>
+    <div class="promo"><strong>Premier envoi : frais offerts</strong><span id="promoText">Ensuite 0,99 € jusqu’à 50 €.</span></div>
 
     <section class="card">
-      <h1>Envoyez de l’argent au Gabon</h1>
-      <p class="lead">Taux officiel 1 € = 655,957 FCFA, sans marge cachée. Reçu en quelques minutes sur Airtel Money.</p>
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tab-fr_to_ga" data-dir="fr_to_ga" aria-selected="true">France → Gabon</button>
+        <button type="button" role="tab" id="tab-ga_to_fr" data-dir="ga_to_fr" aria-selected="false">Gabon → France</button>
+      </div>
 
       <label for="amount">Vous envoyez</label>
-      <div class="money"><input id="amount" type="number" inputmode="decimal" min="5" max="1000" step="1" value="100"><span>EUR</span></div>
+      <div class="money"><input id="amount" type="number" inputmode="decimal" min="1" step="1" value="100"><span id="sendCur">EUR</span></div>
 
       <label>Le bénéficiaire reçoit</label>
-      <div class="money result"><output id="received">—</output><span>FCFA</span></div>
+      <div class="money result"><output id="received">—</output><span id="recvCur">FCFA</span></div>
+
+      <p class="label" id="payLabel">Vous payez avec</p>
+      <div class="chips" id="payChips"></div>
+      <p class="label" id="payoutLabel">Le bénéficiaire reçoit sur</p>
+      <div class="chips" id="payoutChips"></div>
 
       <dl class="summary">
         <div><dt>Frais</dt><dd id="fee">—</dd></div>
-        <div><dt>Total débité</dt><dd id="total">—</dd></div>
+        <div class="discount"><dt>Premier envoi offert</dt><dd id="discount">—</dd></div>
+        <div><dt>Total à payer</dt><dd id="total">—</dd></div>
+        <div><dt>Total si premier envoi</dt><dd id="totalFirst">—</dd></div>
       </dl>
       <p id="quoteError" class="error hidden"></p>
 
       <table class="compare">
-        <thead><tr><th>Service</th><th>Coût total estimé*</th><th>Reçu</th></tr></thead>
+        <thead><tr><th>Service</th><th>Coût total*</th><th>Reçu</th></tr></thead>
         <tbody id="compare"></tbody>
       </table>
-      <p class="fine">* Frais + marge sur le taux de change, estimations indicatives des concurrents.</p>
+      <p class="fine">* Frais + marge sur le taux de change. Taux officiel 1 € = 655,957 FCFA, sans marge chez nous. Concurrents : estimations indicatives.</p>
     </section>
 
     <form id="sendForm" class="card" novalidate>
-      <h2>Bénéficiaire au Gabon</h2>
-      <label for="recipientPhone">Numéro Airtel Money</label>
-      <div class="row">
-        <input id="recipientPhone" name="recipientPhone" type="tel" placeholder="077 12 34 56" autocomplete="off" required>
-        <button type="button" id="verify" class="secondary">Vérifier</button>
-      </div>
-      <p id="verifyResult" class="hint"></p>
+      <!-- France -> Gabon -->
+      <fieldset data-for="fr_to_ga">
+        <h2>Bénéficiaire au Gabon</h2>
+        <label for="recipientPhone">Numéro Airtel Money</label>
+        <div class="row">
+          <input id="recipientPhone" type="tel" placeholder="077 12 34 56" autocomplete="off">
+          <button type="button" id="verify" class="secondary">Vérifier</button>
+        </div>
+        <p id="verifyResult" class="hint"></p>
+      </fieldset>
 
-      <label for="recipientName">Nom du bénéficiaire</label>
-      <input id="recipientName" name="recipientName" required maxlength="100">
+      <!-- Gabon -> France -->
+      <fieldset data-for="ga_to_fr">
+        <h2>Bénéficiaire en France</h2>
+        <div data-payout="sepa">
+          <label for="recipientIban">IBAN du bénéficiaire</label>
+          <input id="recipientIban" placeholder="FR76 3000 6000 0112 3456 7890 189" autocomplete="off">
+        </div>
+        <div data-payout="paypal">
+          <label for="recipientEmail">E-mail du compte PayPal</label>
+          <input id="recipientEmail" type="email" placeholder="nom@exemple.fr" autocomplete="off">
+        </div>
+      </fieldset>
+
+      <label for="recipientName">Nom complet du bénéficiaire</label>
+      <input id="recipientName" maxlength="100">
 
       <h2>Vous</h2>
       <label for="senderName">Votre nom complet</label>
-      <input id="senderName" name="senderName" autocomplete="name" required maxlength="100">
-      <label for="senderEmail">Votre e-mail (pour le reçu)</label>
-      <input id="senderEmail" name="senderEmail" type="email" autocomplete="email" required maxlength="200">
+      <input id="senderName" autocomplete="name" maxlength="100">
+      <div data-for="fr_to_ga">
+        <label for="senderEmail">Votre e-mail (pour le reçu)</label>
+        <input id="senderEmail" type="email" autocomplete="email" maxlength="200">
+      </div>
+      <div data-for="ga_to_fr">
+        <label for="senderPhone">Votre numéro Airtel Money (le paiement sera demandé dessus)</label>
+        <input id="senderPhone" type="tel" placeholder="077 12 34 56" autocomplete="tel">
+      </div>
 
-      <label class="check"><input type="checkbox" id="confirm" required> J’ai vérifié le numéro : un envoi sur un mauvais numéro ne peut pas être annulé.</label>
+      <label class="check"><input type="checkbox" id="confirm"> J’ai vérifié les coordonnées du bénéficiaire : un envoi vers un mauvais compte ne peut pas être annulé.</label>
 
       <p id="formError" class="error hidden"></p>
-      <button type="submit" id="submit" class="primary">Payer par carte</button>
+      <button type="submit" id="submit" class="primary">Payer</button>
     </form>
   </main>
   <script src="/app.js"></script>

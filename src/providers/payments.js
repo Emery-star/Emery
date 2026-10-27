@@ -2,7 +2,7 @@
 
 const crypto = require('node:crypto');
 
-/** Encaissement par carte bancaire via Stripe Checkout. */
+/** Encaissement en France (carte ou PayPal) via Stripe Checkout. */
 class StripePayments {
   constructor(cfg, publicUrl) {
     const Stripe = require('stripe');
@@ -15,16 +15,17 @@ class StripePayments {
     const session = await this.stripe.checkout.sessions.create(
       {
         mode: 'payment',
-        customer_email: transfer.sender_email,
+        payment_method_types: [transfer.pay_method === 'paypal' ? 'paypal' : 'card'],
+        customer_email: transfer.sender_contact,
         client_reference_id: transfer.id,
         line_items: [
           {
             quantity: 1,
             price_data: {
               currency: 'eur',
-              unit_amount: Math.round(transfer.total_eur * 100),
+              unit_amount: Math.round(transfer.total * 100),
               product_data: {
-                name: `Envoi Airtel Money Gabon – ${transfer.received_xaf.toLocaleString('fr-FR')} FCFA`,
+                name: `Envoi Airtel Money Gabon – ${transfer.receive_amount.toLocaleString('fr-FR')} FCFA`,
                 description: `Pour ${transfer.recipient_name}, frais inclus`,
               },
             },
@@ -42,7 +43,9 @@ class StripePayments {
   /** Vérifie la signature et retourne { transferId, paymentRef } si le paiement est confirmé. */
   parseWebhook(rawBody, signature) {
     const event = this.stripe.webhooks.constructEvent(rawBody, signature, this.webhookSecret);
-    if (event.type !== 'checkout.session.completed') return null;
+    if (event.type !== 'checkout.session.completed' && event.type !== 'checkout.session.async_payment_succeeded') {
+      return null;
+    }
     const s = event.data.object;
     if (s.payment_status !== 'paid') return null;
     return {
@@ -64,7 +67,7 @@ class MockPayments {
     this.publicUrl = publicUrl;
     this.refunds = [];
   }
-  async createCheckout(transfer) {
+  async createCheckout() {
     const checkoutId = `mock_cs_${crypto.randomBytes(8).toString('hex')}`;
     return { checkoutId, url: `${this.publicUrl}/paiement-test.html?session=${checkoutId}` };
   }

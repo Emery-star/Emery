@@ -25,7 +25,7 @@ function maskName(name) {
   return [first, ...rest.map((w) => w[0] + '*'.repeat(Math.max(0, w.length - 1)))].join(' ');
 }
 
-function createApp({ config, transfers, airtel, payments, logger = console }) {
+function createApp({ config, transfers, rails, airtel, payments, logger = console }) {
   const app = express();
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
@@ -63,16 +63,26 @@ function createApp({ config, transfers, airtel, payments, logger = console }) {
 
   app.get('/api/config', (req, res) => {
     res.json({
+      mode: config.mode,
       rate: config.eurToXaf,
       limits: config.limits,
       fees: config.fees,
-      sandbox: !config.airtel.enabled || !config.stripe.enabled,
+      methods: rails.methods(),
     });
   });
 
   app.get('/api/quote', (req, res) => {
+    const params = {
+      direction: req.query.direction,
+      amount: req.query.amount,
+      payMethod: req.query.pay,
+      payoutMethod: req.query.payout,
+    };
     try {
-      res.json(quote(req.query.amount, config));
+      const q = quote(params, config);
+      // Remise affichée pour un premier envoi (appliquée à la création si l'expéditeur est nouveau).
+      q.firstTransferDiscount = quote({ ...params, firstTransfer: true }, config).discount;
+      res.json(q);
     } catch (err) {
       if (err instanceof QuoteError) return res.status(400).json({ error: err.message });
       throw err;
@@ -95,13 +105,14 @@ function createApp({ config, transfers, airtel, payments, logger = console }) {
   app.post('/api/transfers', rateLimit({ windowMs: 60_000, max: 5 }), async (req, res) => {
     try {
       const r = await transfers.create(req.body || {});
-      res.status(201).json(r);
+      const trackUrl = `/suivi.html?id=${r.id}&t=${r.accessToken}`;
+      res.status(201).json({ ...r, nextUrl: r.checkoutUrl || trackUrl, trackUrl });
     } catch (err) {
       if (err instanceof ValidationError || err instanceof QuoteError) {
         return res.status(400).json({ error: err.message });
       }
       logger.error(`Création transfert : ${err.message}`);
-      res.status(500).json({ error: 'Impossible de créer le transfert.' });
+      res.status(500).json({ error: 'Impossible de créer le transfert. Réessayez dans un instant.' });
     }
   });
 
@@ -117,8 +128,8 @@ function createApp({ config, transfers, airtel, payments, logger = console }) {
     transfers.reconcile().catch((err) => logger.error(`Réconciliation : ${err.message}`));
   });
 
-  // Paiement simulé (uniquement sans Stripe configuré).
-  if (!payments.parseWebhook) {
+  // Simulations, uniquement en mode démo.
+  if (config.mode === 'demo') {
     app.post('/api/mock-checkout/:session/complete', async (req, res) => {
       const tr = transfers.findByCheckout(req.params.session);
       if (!tr) return res.status(404).json({ error: 'Session inconnue' });
@@ -128,6 +139,14 @@ function createApp({ config, transfers, airtel, payments, logger = console }) {
         paymentRef: `mock_pi_${crypto.randomBytes(6).toString('hex')}`,
       });
       res.json({ redirect: `/suivi.html?id=${tr.id}&t=${tr.access_token}` });
+    });
+
+    // Simule la validation du paiement par code PIN sur le téléphone de l'expéditeur.
+    app.post('/api/demo/airtel-pin/:id', async (req, res) => {
+      if (!transfers.getPublic(req.params.id, req.query.t)) return res.status(404).json({ error: 'Transfert introuvable' });
+      airtel.confirmCollection(`C${req.params.id}`);
+      await transfers.reconcileOne(req.params.id);
+      res.json(transfers.getPublic(req.params.id, req.query.t));
     });
   }
 

@@ -105,3 +105,20 @@ a.secondary { display: block; margin-top: 10px; }
 .status.ok { color: var(--ok); }
 .status.bad { color: var(--error); }
 .status.pending { color: var(--blue); }
+.promo { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; background: var(--card); border: 2px solid var(--brand); border-radius: 12px; padding: 12px 14px; margin-bottom: 20px; }
+.promo strong { color: var(--brand); font-size: 1.05rem; }
+.promo span { color: var(--muted); font-size: .9rem; }
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--bg); border-radius: 12px; padding: 4px; margin-bottom: 4px; }
+.tabs button { border: 0; background: transparent; color: var(--muted); padding: 10px 8px; border-radius: 9px; }
+.tabs button[aria-selected="true"] { background: var(--card); color: var(--brand); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+p.label { font-weight: 600; margin: 14px 0 6px; font-size: .92rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; gap: 6px; align-items: baseline; padding: 9px 14px; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 999px; font-weight: 600; }
+.chip small { font-weight: 600; font-size: .75rem; color: var(--muted); }
+.chip[aria-pressed="true"] { border-color: var(--brand); background: var(--brand); color: #fff; }
+.chip[aria-pressed="true"] small { color: #e6fff2; }
+.chip:disabled { opacity: .55; cursor: not-allowed; }
+.summary .discount dd { color: var(--brand); }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.pinbox { border: 1px dashed var(--brand); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
+.pinbox p { margin: 0 0 6px; }

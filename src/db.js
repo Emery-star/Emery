@@ -10,26 +10,33 @@ function openDb(dbPath) {
   db.exec(`
     PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS transfers (
-      id               TEXT PRIMARY KEY,
-      access_token     TEXT NOT NULL,
-      status           TEXT NOT NULL,
-      amount_eur       REAL NOT NULL,
-      fee_eur          REAL NOT NULL,
-      total_eur        REAL NOT NULL,
-      received_xaf     INTEGER NOT NULL,
-      sender_name      TEXT NOT NULL,
-      sender_email     TEXT NOT NULL,
-      recipient_name   TEXT NOT NULL,
-      recipient_msisdn TEXT NOT NULL,
-      checkout_id      TEXT,
-      payment_ref      TEXT,
-      airtel_ref       TEXT,
-      failure_reason   TEXT,
-      created_at       TEXT NOT NULL,
-      updated_at       TEXT NOT NULL
+      id                TEXT PRIMARY KEY,
+      access_token      TEXT NOT NULL,
+      status            TEXT NOT NULL,
+      direction         TEXT NOT NULL,          -- fr_to_ga | ga_to_fr
+      pay_method        TEXT NOT NULL,          -- card | paypal | airtel
+      payout_method     TEXT NOT NULL,          -- airtel | paypal | sepa
+      send_currency     TEXT NOT NULL,
+      send_amount       REAL NOT NULL,
+      fee               REAL NOT NULL,
+      discount          REAL NOT NULL,
+      total             REAL NOT NULL,
+      receive_currency  TEXT NOT NULL,
+      receive_amount    REAL NOT NULL,
+      sender_name       TEXT NOT NULL,
+      sender_contact    TEXT NOT NULL,          -- e-mail (France) ou numéro Airtel (Gabon)
+      recipient_name    TEXT NOT NULL,
+      recipient_account TEXT NOT NULL,          -- numéro Airtel, e-mail PayPal ou IBAN
+      checkout_id       TEXT,
+      payment_ref       TEXT,
+      payout_ref        TEXT,
+      failure_reason    TEXT,
+      created_at        TEXT NOT NULL,
+      updated_at        TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_transfers_status ON transfers(status);
     CREATE INDEX IF NOT EXISTS idx_transfers_checkout ON transfers(checkout_id);
+    CREATE INDEX IF NOT EXISTS idx_transfers_sender ON transfers(sender_contact);
     CREATE TABLE IF NOT EXISTS events (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       transfer_id TEXT NOT NULL,
