@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EnvoiGabon entre amis</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="send">
+  <header class="top">
+    <div class="wrap">
+      <span class="logo">Envoi<b>Gabon</b></span>
+      <span class="tag">France ⇄ Gabon, entre amis</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="promo"><strong>Premier envoi : frais offerts</strong><span id="promoText">Ensuite 0,99 € jusqu’à 50 €.</span></div>
+
+    <section class="card">
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" data-dir="fr_to_ga" aria-selected="true">France → Gabon</button>
+        <button type="button" role="tab" data-dir="ga_to_fr" aria-selected="false">Gabon → France</button>
+      </div>
+
+      <label for="amount">Vous envoyez</label>
+      <div class="money"><input id="amount" type="number" inputmode="decimal" min="1" step="1" value="100"><span id="sendCur">EUR</span></div>
+      <label>Le bénéficiaire reçoit</label>
+      <div class="money result"><output id="received">—</output><span id="recvCur">FCFA</span></div>
+
+      <p class="label">Vous payez par</p>
+      <div class="chips" id="payChips"></div>
+      <p class="label">Le bénéficiaire reçoit sur</p>
+      <div class="chips" id="payoutChips"></div>
+
+      <dl class="summary">
+        <div><dt>Frais</dt><dd id="fee">—</dd></div>
+        <div class="discount"><dt>Si c’est votre premier envoi</dt><dd id="discount">—</dd></div>
+        <div><dt>Total à payer</dt><dd id="total">—</dd></div>
+      </dl>
+      <p id="quoteError" class="error hidden"></p>
+
+      <table class="compare">
+        <thead><tr><th>Service</th><th>Coût total*</th><th>Reçu</th></tr></thead>
+        <tbody id="compare"></tbody>
+      </table>
+      <p class="fine">* Frais + marge sur le taux de change. Taux officiel 1 € = 655,957 FCFA. Concurrents : estimations.</p>
+    </section>
+
+    <form id="sendForm" class="card" novalidate>
+      <h2>Bénéficiaire</h2>
+      <label for="recipientAccount" id="accountLabel">Numéro Airtel Money</label>
+      <input id="recipientAccount" autocomplete="off">
+      <label for="recipientName">Prénom et nom du bénéficiaire</label>
+      <input id="recipientName" maxlength="100">
+
+      <h2>Vous</h2>
+      <label for="senderName">Votre prénom et nom</label>
+      <input id="senderName" autocomplete="name" maxlength="100">
+      <label for="senderContact">Votre WhatsApp, téléphone ou e-mail</label>
+      <input id="senderContact" autocomplete="tel" maxlength="100">
+
+      <label class="check"><input type="checkbox" id="confirm"> J’ai vérifié les coordonnées du bénéficiaire.</label>
+      <p id="formError" class="error hidden"></p>
+      <button type="submit" id="submit" class="primary">Continuer</button>
+    </form>
+  </main>
+  <script src="/amis.js"></script>
+</body>
+</html>

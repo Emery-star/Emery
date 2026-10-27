@@ -19,7 +19,8 @@ const num = (v, d) => (v === undefined || v === '' ? d : Number(v));
 
 const config = {
   // "demo" : tous les prestataires sont simulés. "live" : vrais prestataires uniquement.
-  mode: env.MODE === 'live' ? 'live' : 'demo',
+  // "amis" : envois entre proches, l'organisateur fait lui-même les envois depuis ses comptes personnels.
+  mode: ['live', 'amis'].includes(env.MODE) ? env.MODE : 'demo',
   port: num(env.PORT, 3000),
   publicUrl: (env.PUBLIC_URL || 'http://localhost:3000').replace(/\/$/, ''),
   dbPath: env.DB_PATH || path.join(__dirname, '..', 'data', 'transfers.db'),
@@ -57,6 +58,25 @@ const config = {
     brevoApiKey: env.BREVO_API_KEY || '',
     from: env.EMAIL_FROM || 'no-reply@example.com',
     fromName: env.EMAIL_FROM_NAME || 'EnvoiGabon',
+  },
+
+  // Mode "amis" : comptes personnels de l'organisateur, sur lesquels les amis paient.
+  operator: {
+    name: env.OPERATOR_NAME || '',
+    airtel: env.OPERATOR_AIRTEL || '',
+    paypalEmail: env.OPERATOR_PAYPAL_EMAIL || '',
+    paypalMe: env.OPERATOR_PAYPALME || '',
+    wero: env.OPERATOR_WERO || '',
+    iban: env.OPERATOR_IBAN || '',
+    whatsapp: env.OPERATOR_WHATSAPP || '',
+  },
+
+  // Notifications sur le téléphone de l'organisateur : ntfy (appli gratuite) et/ou Telegram.
+  alerts: {
+    ntfyServer: (env.NTFY_SERVER || 'https://ntfy.sh').replace(/\/$/, ''),
+    ntfyTopic: env.NTFY_TOPIC || '',
+    telegramToken: env.TELEGRAM_BOT_TOKEN || '',
+    telegramChatId: env.TELEGRAM_CHAT_ID || '',
   },
 
   support: {

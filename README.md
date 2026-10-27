@@ -12,6 +12,40 @@ avec **Airtel Money** côté Gabon, moins cher que Western Union ou Ria.
 
 Version test en ligne, entièrement simulée : `demo/envoi-gabon-test.html` (fichier autonome à ouvrir dans un navigateur).
 
+## Mode « entre amis » (`MODE=amis`)
+
+Pour un petit cercle de proches, sans compte professionnel. **L'organisateur fait les envois lui-même** depuis son
+Airtel Money et son PayPal personnels ; l'application calcule, guide et suit tout le reste.
+
+1. L'ami remplit le formulaire. L'appli calcule les frais et le montant reçu, et donne un code (ex. `EG-K7M2P`).
+2. L'ami paie l'organisateur : PayPal (lien prérempli), Wero ou virement depuis la France ; Airtel Money depuis le
+   Gabon. Il clique sur « J'ai payé ».
+3. L'organisateur reçoit une alerte sur son téléphone (ntfy ou Telegram), vérifie la réception, puis fait l'envoi :
+   l'espace organisateur (`/admin.html`) affiche le numéro, le montant et le motif, avec des boutons « Copier ».
+4. Il clique sur « Argent envoyé » : l'ami voit « Argent envoyé ✓ » sur sa page de suivi.
+
+Les demandes jamais payées sont annulées après 48 h.
+
+Comptes personnels Airtel Money et PayPal n'ont pas d'API d'envoi : chaque envoi se valide à la main avec votre code
+PIN ou dans l'appli PayPal. Il faut de l'argent d'avance sur les deux comptes. Attention : beaucoup d'argent de tiers
+qui transite par des comptes personnels peut les faire bloquer, et prendre des frais de façon régulière relève
+du transfert d'argent réglementé.
+
+### Héberger gratuitement
+
+Toutes les plateformes ci-dessous lancent l'appli avec `npm install` puis `npm start` (Node.js 22.13 ou plus).
+Les paramètres (`MODE=amis`, `OPERATOR_*`, `ADMIN_TOKEN`, `NTFY_TOPIC`, `PUBLIC_URL`…) se saisissent dans leur
+interface, rubrique « variables d'environnement ». Vérifiez leurs conditions actuelles, elles changent souvent.
+
+| Hébergeur | Prix | Données conservées | Remarque |
+|---|---|---|---|
+| **Alwaysdata** (alwaysdata.com) | gratuit (100 Mo) | oui | hébergeur français, recommandé |
+| Railway (railway.app) | essai gratuit, puis ~5 $/mois | oui, avec un volume | le plus simple, relié à GitHub |
+| Render (render.com) | gratuit | **non** : tout est effacé à chaque redémarrage | seulement pour essayer |
+
+Sur Alwaysdata : créer un compte gratuit, ajouter un site de type **Node.js**, envoyer le code (Git ou SSH), commande
+`npm start`, et `DB_PATH` dans votre dossier personnel (ex. `/home/<compte>/envoi/transfers.db`).
+
 ## Frais
 
 Le franc CFA (XAF) est arrimé à l'euro : **1 € = 655,957 FCFA**, toujours. Le taux officiel est appliqué
@@ -154,6 +188,7 @@ src/
   users.js              comptes clients, sessions, vérification d'identité
   notifier.js           reçus par e-mail (Brevo, ou console en démo)
   compliance/           KYC, listes de sanctions, plafonds
+  friends/              mode « entre amis » : demandes, alertes, espace organisateur
   rails.js              moyens de paiement et de versement, par sens d'envoi
   fees.js               calcul des frais et comparaison
   phone.js, validate.js numéros Airtel Gabon, IBAN, e-mails
@@ -162,6 +197,7 @@ src/
   providers/paypal.js   PayPal Payouts (+ simulateur)
   providers/sepa.js     virements SEPA (simulateur, client réel à brancher)
 public/                 interface web (accueil, compte, suivi, espace équipe, pages légales)
+public/amis/            pages du mode « entre amis »
 demo/                   version test autonome, sans serveur
 test/                   tests (node --test)
 ```

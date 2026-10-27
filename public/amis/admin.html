@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Organisateur – EnvoiGabon</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="admin">
+  <header class="top"><div class="wrap"><span class="logo">Envoi<b>Gabon</b> · organisateur</span><button id="adminLogout" class="account hidden" type="button">Quitter</button></div></header>
+  <main class="wrap">
+    <form id="tokenForm" class="card" novalidate>
+      <h1>Espace organisateur</h1>
+      <label for="token">Code organisateur (ADMIN_TOKEN)</label>
+      <input id="token" type="password" autocomplete="current-password">
+      <p id="tokenError" class="error hidden"></p>
+      <button class="primary" type="submit">Entrer</button>
+    </form>
+
+    <div id="adminView" class="hidden">
+      <div class="row-filters">
+        <select id="filter" aria-label="Filtrer">
+          <option value="todo" selected>À traiter</option>
+          <option value="">Toutes</option>
+          <option value="completed">Envoyées</option>
+          <option value="cancelled">Annulées</option>
+          <option value="refunded">Remboursées</option>
+        </select>
+        <button type="button" id="reload" class="secondary">Actualiser</button>
+      </div>
+      <p id="adminError" class="error hidden"></p>
+      <div id="list" class="cards"></div>
+    </div>
+  </main>
+  <script src="/amis.js"></script>
+</body>
+</html>

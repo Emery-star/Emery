@@ -149,3 +149,17 @@ table.admin th, table.admin td { text-align: left; padding: 8px 6px; border-bott
 .row-filters select { width: auto; }
 .counts { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
 .pre { white-space: pre-line; }
+.big { font-size: 1.6rem; font-weight: 800; margin: 4px 0; font-variant-numeric: tabular-nums; }
+.small { padding: 4px 10px; font-size: .8rem; }
+.pinbox h2 { margin-top: 0; }
+.pinbox ol { padding-left: 20px; margin: 8px 0; }
+.cards { display: grid; gap: 14px; }
+.req { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 8px; }
+.req header { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: baseline; }
+.req h3 { margin: 0; font-size: 1.05rem; }
+.req .todo-box { background: var(--bg); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; }
+.req .line { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.req .line strong { overflow-wrap: anywhere; }
+.req input { padding: 8px 10px; }
+.req .actions button { padding: 8px 12px; font-size: .85rem; }
+.req .actions .go { background: var(--brand); color: #fff; border-color: var(--brand); }

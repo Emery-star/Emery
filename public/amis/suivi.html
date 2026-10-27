@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Suivi de l’envoi – EnvoiGabon</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="track">
+  <header class="top"><div class="wrap"><a class="logo" href="/">Envoi<b>Gabon</b></a></div></header>
+  <main class="wrap">
+    <section class="card">
+      <h1>Envoi <span id="code"></span></h1>
+      <div id="status" class="status">Chargement…</div>
+
+      <div id="payBox" class="pinbox hidden">
+        <h2 id="payTitle">Comment payer</h2>
+        <p class="big" id="payAmount"></p>
+        <p>à <strong id="payTo"></strong> <button type="button" id="copyTo" class="secondary small">Copier</button></p>
+        <ol id="paySteps"></ol>
+        <a id="payLink" class="primary link hidden" target="_blank" rel="noopener">Payer avec PayPal</a>
+        <div id="declareBox">
+          <label for="payerRef">Référence du paiement (facultatif, ex. n° de transaction Airtel)</label>
+          <input id="payerRef" maxlength="60" autocomplete="off">
+          <button type="button" id="declare" class="primary">J’ai payé</button>
+          <button type="button" id="cancel" class="secondary">Annuler la demande</button>
+        </div>
+      </div>
+
+      <p id="actionError" class="error hidden"></p>
+      <dl class="summary" id="details"></dl>
+      <p id="whatsapp" class="fine hidden"></p>
+      <p class="fine">Gardez le lien de cette page : il vous permet de suivre votre envoi.</p>
+      <a href="/" class="secondary link">Faire un nouvel envoi</a>
+    </section>
+  </main>
+  <script src="/amis.js"></script>
+</body>
+</html>
